@@ -68,6 +68,7 @@ export const FLAME_LIGHT_COLOR = 0xFF4500; // Red-orange
 export const ALERT_SPEED_MULTIPLIER = 0.85; // Robots move 85% of player speed when chasing (slower than player)
 export const ROBOT_ACCELERATION = 400; // pixels per second squared
 export const ROBOT_DECELERATION = 600; // pixels per second squared
+export const ROBOT_CHASE_ABANDON_DISTANCE = 3 * TILE_SIZE; // Distance in pixels (3 tiles) at which robot gives up chasing and returns to patrol
 
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging

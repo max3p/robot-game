@@ -30,6 +30,10 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   // Random walk AI state
   private currentTargetTile: Vector2 | null = null; // Current target tile in world coordinates
   private tileReachDistance: number = 20; // Distance to consider a tile "reached" in pixels (increased for smoother stopping)
+  private tileMemory: Vector2[] = []; // Memory of last 4 tiles visited (tile coordinates, not world coordinates)
+  private readonly MAX_TILE_MEMORY = 4; // Maximum number of tiles to remember
+  private isRepositioning: boolean = false; // True when robot needs to reposition to tile center after chase
+  private repositionTarget: Vector2 | null = null; // Target position for repositioning (center of current tile)
   
   // Behavior states for patrol AI
   private patrolBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';
@@ -167,7 +171,13 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     // State-based behavior is handled by subclasses
     // Base class only handles patrol for generic robots
     if (this.state === RobotState.PATROL) {
-      this.updateRandomWalk(delta);
+      // If repositioning, handle that first
+      if (this.isRepositioning) {
+        this.updateRepositioning(delta);
+      } else {
+        // Normal patrol behavior
+        this.updateRandomWalk(delta);
+      }
       // Apply smooth movement with acceleration/deceleration only during patrol
       this.applySmoothMovement(delta);
     }
@@ -180,8 +190,10 @@ export class Robot extends Phaser.GameObjects.Rectangle {
    */
   setLevelGrid(grid: number[][]) {
     this.levelGrid = grid;
+    // Initialize tile memory with starting position
+    const currentTile = this.worldToTileCoordinates(this.x, this.y);
+    this.tileMemory = [{ x: currentTile.x, y: currentTile.y }];
     if (DEBUG_MODE) {
-      const currentTile = this.worldToTileCoordinates(this.x, this.y);
       console.log(`[Robot ${this.robotType}] Level grid set. Starting at tile (${currentTile.x},${currentTile.y})`);
     }
   }
@@ -290,6 +302,67 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     this.detectionCone.strokePath();
   }
 
+  /**
+   * Starts repositioning phase - moves robot to center of current tile
+   * Called after returning to patrol from chase to ensure proper tile alignment
+   */
+  protected startRepositioning(): void {
+    const currentTile = this.worldToTileCoordinates(this.x, this.y);
+    this.repositionTarget = this.tileToWorldCoordinates(currentTile.x, currentTile.y);
+    this.isRepositioning = true;
+    this.currentTargetTile = null; // Clear any existing target
+    this.patrolBehavior = 'MOVING'; // Force moving behavior during reposition
+    
+    if (DEBUG_MODE) {
+      console.log(`[Robot ${this.robotType}] Starting repositioning to tile center (${currentTile.x},${currentTile.y})`);
+    }
+  }
+  
+  /**
+   * Updates repositioning behavior - moves robot to center of current tile
+   * @param delta Time delta in milliseconds
+   */
+  private updateRepositioning(delta: number): void {
+    if (!this.repositionTarget) {
+      // No target, shouldn't happen but reset state
+      this.isRepositioning = false;
+      return;
+    }
+    
+    // Calculate distance to reposition target (tile center)
+    const dx = this.repositionTarget.x - this.x;
+    const dy = this.repositionTarget.y - this.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance <= this.tileReachDistance) {
+      // Reached tile center - snap to exact position and exit repositioning
+      this.setPosition(this.repositionTarget.x, this.repositionTarget.y);
+      this.isRepositioning = false;
+      this.repositionTarget = null;
+      this.targetVelocity = { x: 0, y: 0 };
+      this.body.setVelocity(0, 0);
+      
+      // Update current tile in memory
+      const currentTile = this.worldToTileCoordinates(this.x, this.y);
+      this.addTileToMemory(currentTile);
+      
+      if (DEBUG_MODE) {
+        console.log(`[Robot ${this.robotType}] Repositioning complete. Resuming normal patrol.`);
+      }
+    } else {
+      // Move toward tile center
+      const directionX = dx / distance;
+      const directionY = dy / distance;
+      
+      this.targetVelocity = {
+        x: directionX * this.speed,
+        y: directionY * this.speed
+      };
+      
+      this.facingDirection = { x: directionX, y: directionY };
+    }
+  }
+  
   /**
    * Updates random walk behavior with advanced behaviors (moving, looking, resting)
    * @param delta Time delta in milliseconds
@@ -407,11 +480,12 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       const distance = Math.sqrt(dx * dx + dy * dy);
       
       if (distance <= this.tileReachDistance) {
-        // Reached target - clear it (will select new one next frame if still in MOVING behavior)
+        // Reached target - add to memory and clear it (will select new one next frame if still in MOVING behavior)
+        const reachedTile = this.worldToTileCoordinates(this.x, this.y);
+        this.addTileToMemory(reachedTile);
         this.currentTargetTile = null;
         
         if (DEBUG_MODE && this.shouldLogDebug()) {
-          const reachedTile = this.worldToTileCoordinates(this.x, this.y);
           console.log(`[Robot ${this.robotType}] Reached tile (${reachedTile.x},${reachedTile.y})`);
         }
       } else {
@@ -541,7 +615,56 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   }
   
   /**
-   * Selects a random neighboring floor tile to move to
+   * Adds a tile to memory (tracking last visited tiles)
+   * @param tile Tile coordinates to add to memory
+   */
+  private addTileToMemory(tile: Vector2): void {
+    // Remove the tile if it's already in memory (to avoid duplicates)
+    this.tileMemory = this.tileMemory.filter(
+      t => !(t.x === tile.x && t.y === tile.y)
+    );
+    
+    // Add to beginning of array
+    this.tileMemory.unshift({ x: tile.x, y: tile.y });
+    
+    // Keep only the last MAX_TILE_MEMORY tiles
+    if (this.tileMemory.length > this.MAX_TILE_MEMORY) {
+      this.tileMemory = this.tileMemory.slice(0, this.MAX_TILE_MEMORY);
+    }
+  }
+  
+  /**
+   * Checks if a tile is in memory (recently visited)
+   * @param tile Tile coordinates to check
+   * @returns True if tile is in memory, false otherwise
+   */
+  private isTileInMemory(tile: Vector2): boolean {
+    return this.tileMemory.some(t => t.x === tile.x && t.y === tile.y);
+  }
+  
+  /**
+   * Gets the visit weight for a tile (higher for unvisited, lower for recently visited)
+   * @param tile Tile coordinates to get weight for
+   * @returns Weight value (higher = more likely to be selected)
+   */
+  private getTileWeight(tile: Vector2): number {
+    if (!this.isTileInMemory(tile)) {
+      // Unvisited tile - highest weight
+      return 5.0;
+    } else {
+      // Visited tile - lower weight based on recency (most recent = lowest)
+      const memoryIndex = this.tileMemory.findIndex(t => t.x === tile.x && t.y === tile.y);
+      if (memoryIndex === -1) {
+        return 5.0; // Shouldn't happen, but default to high weight
+      }
+      // Most recent (index 0) = weight 0.5, older tiles get progressively higher
+      return 0.5 + (memoryIndex * 0.5);
+    }
+  }
+  
+  /**
+   * Selects a random neighboring floor tile to move to using weighted selection
+   * to avoid revisiting recently visited tiles
    * @param currentTile Current tile position
    */
   private selectRandomNeighborTile(currentTile: Vector2): void {
@@ -558,10 +681,26 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       this.isValidFloorTile(neighbor.x, neighbor.y)
     );
     
-    // If we have valid neighbors, randomly select one
+    // If we have valid neighbors, use weighted random selection
     if (validNeighbors.length > 0) {
-      const randomIndex = Math.floor(Math.random() * validNeighbors.length);
-      const selectedTile = validNeighbors[randomIndex];
+      // Calculate weights for each neighbor
+      const weights: number[] = validNeighbors.map(tile => this.getTileWeight(tile));
+      
+      // Calculate total weight
+      const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+      
+      // Select random value from 0 to totalWeight
+      let randomValue = Math.random() * totalWeight;
+      
+      // Find which tile corresponds to the random value
+      let selectedTile: Vector2 = validNeighbors[0]; // Default to first
+      for (let i = 0; i < validNeighbors.length; i++) {
+        randomValue -= weights[i];
+        if (randomValue <= 0) {
+          selectedTile = validNeighbors[i];
+          break;
+        }
+      }
       
       // Convert to world coordinates and set as target
       this.currentTargetTile = this.tileToWorldCoordinates(selectedTile.x, selectedTile.y);

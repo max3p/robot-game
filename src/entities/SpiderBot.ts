@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED } from '../config/constants';
+import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -77,6 +77,9 @@ export class SpiderBot extends Robot {
     if (!this.alertTarget) {
       // No target, return to patrol
       this.state = RobotState.PATROL;
+      this.body.setVelocity(0, 0);
+      // Start repositioning to center of current tile
+      this.startRepositioning();
       return;
     }
 
@@ -96,15 +99,32 @@ export class SpiderBot extends Robot {
       // Target lost, return to patrol
       this.state = RobotState.PATROL;
       this.alertTarget = null;
+      this.body.setVelocity(0, 0);
+      // Start repositioning to center of current tile
+      this.startRepositioning();
       return;
     }
 
     // Update alert target to current player position
     this.alertTarget = { x: targetPlayer.x, y: targetPlayer.y };
 
-    // Check if in attack range
+    // Check distance to target
     const distanceToTarget = distance({ x: this.x, y: this.y }, this.alertTarget);
     
+    // Check if player is too far away - give up chase and return to patrol
+    if (distanceToTarget >= ROBOT_CHASE_ABANDON_DISTANCE) {
+      if (DEBUG_MODE) {
+        console.log(`[Robot ${this.robotType}] Player too far (${(distanceToTarget / 96).toFixed(1)} tiles), returning to patrol`);
+      }
+      this.state = RobotState.PATROL;
+      this.alertTarget = null;
+      this.body.setVelocity(0, 0);
+      // Start repositioning to center of current tile
+      this.startRepositioning();
+      return;
+    }
+    
+    // Check if in attack range
     if (distanceToTarget <= this.attackRange) {
       // In attack range - enter attacking state
       this.state = RobotState.ATTACKING;

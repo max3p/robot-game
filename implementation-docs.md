@@ -1096,9 +1096,9 @@ Ground items spawn within 3 tiles of start position.
 
 #### Phase 3 Acceptance Criteria:
 - [ ] All 3 robot types rendered with correct visuals
-- [ ] Robots patrol along defined paths
+- [ ] Robots patrol with random AI behavior
 - [ ] Light cones render correctly per robot type
-- [ ] Players detected only when in light cone
+- [ ] Players detected only when in detection cone
 - [ ] Each robot type attacks correctly
 - [ ] Robots respond to shooting sounds
 
