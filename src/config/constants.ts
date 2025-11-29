@@ -27,5 +27,9 @@ export const WATER_GUN_COLOR = 0x00FFFF; // Cyan
 // Swapping
 export const GROUND_ITEM_PICKUP_RADIUS = 20;
 export const PLAYER_SWAP_DURATION = 2000; // 2 seconds in milliseconds
-export const PLAYER_OVERLAP_RADIUS = 30;
+export const PLAYER_OVERLAP_RADIUS = 40; 
+export const STATIONARY_VELOCITY_THRESHOLD = 5; // Players considered stationary if velocity < this
+
+// Debug
+export const DEBUG_MODE = false; // Enable verbose debug logging
 

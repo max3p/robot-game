@@ -136,7 +136,7 @@ export class GameScene extends Phaser.Scene {
     const baseY = startPos.y * tileSize + this.levelOffsetY + tileSize / 2;
     
     // Spawn 4 players with slight offsets so they don't overlap
-    const offsetDistance = 20; // pixels
+    const offsetDistance = 24; // pixels
     const offsets = [
       { x: -offsetDistance, y: -offsetDistance }, // Player 1: top-left
       { x: offsetDistance, y: -offsetDistance },  // Player 2: top-right
