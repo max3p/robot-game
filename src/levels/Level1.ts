@@ -30,7 +30,7 @@ export const Level1: LevelData = {
       ]
     },
     {
-      type: RobotType.SHOCK_BOT,
+      type: RobotType.FLAME_BOT,
       position: { x: 4, y: 4 },
       patrolPath: [
         { x: 4, y: 4 },

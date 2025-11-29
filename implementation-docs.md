@@ -1089,7 +1089,7 @@ Ground items spawn within 3 tiles of start position.
    - Robots use random walk AI starting from spawn position
    - Scale robot count based on player count
 
-8. **Sound Detection**
+8. **Sound Detection - DEFERRED**
    - When player shoots: nearby robots investigate
    - Robots turn toward sound, move to location
    - Return to patrol after investigation duration
@@ -1097,10 +1097,8 @@ Ground items spawn within 3 tiles of start position.
 #### Phase 3 Acceptance Criteria:
 - [ ] All 3 robot types rendered with correct visuals
 - [ ] Robots patrol with random AI behavior
-- [ ] Light cones render correctly per robot type
 - [ ] Players detected only when in detection cone
 - [ ] Each robot type attacks correctly
-- [ ] Robots respond to shooting sounds
 
 ---
 

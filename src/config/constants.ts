@@ -68,10 +68,18 @@ export const SHOCK_ATTACK_CHARGE_TIME = 500; // milliseconds
 export const SHOCK_ATTACK_AOE_RADIUS = 75; // pixels (half of vision radius - robot must get closer)
 export const SHOCK_MIN_CHASE_DISTANCE = 50; // pixels (robot stops chasing if closer than this)
 
-// Flame-Bot constants (for future phases)
-export const FLAME_LIGHT_RADIUS = 180;
-export const FLAME_LIGHT_ANGLE = 50; // degrees
+// Flame-Bot constants
+export const FLAME_SPEED = 35; // pixels per second (patrol speed, cut in half from 70)
+export const FLAME_SIZE = 48; // pixels
+export const FLAME_COLOR = 0xFF4500; // Red-orange
+export const FLAME_LIGHT_RADIUS = 180; // pixels
+export const FLAME_LIGHT_ANGLE = 50; // degrees (total cone angle)
 export const FLAME_LIGHT_COLOR = 0xFF4500; // Red-orange
+export const FLAME_ATTACK_RANGE = 140; // pixels (ranged)
+export const FLAME_ATTACK_COOLDOWN = 2500; // milliseconds
+export const FLAME_ATTACK_DAMAGE = 1;
+export const FLAME_ATTACK_CONE_ANGLE = 40; // degrees (flame cone width)
+export const FLAME_ATTACK_CONE_LENGTH = 140; // pixels (flame cone length)
 
 // Detection and AI
 export const ALERT_SPEED_MULTIPLIER = 0.85; // Robots move 85% of player speed when chasing (slower than player)
