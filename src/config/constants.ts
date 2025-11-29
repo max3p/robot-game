@@ -8,6 +8,10 @@ export const BASE_PLAYER_SPEED = 200;
 export const BABY_HOLDER_SPEED = 120; // 60% of base speed
 export const PLAYER_RADIUS = 16; // 32px diameter / 2
 export const PLAYER_COLORS = [0x00FF00, 0x0088FF, 0xFFFF00, 0xAA00FF]; // Green, Blue, Yellow, Purple
+export const PLAYER_MASS = 1.0; // Base mass for physics
+export const PLAYER_PUSH_SPEED_MULTIPLIER = 0.5; // Speed reduction when pushing one player
+export const PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE = 0.3; // Speed reduction when pushing multiple players
+export const PLAYER_BOUNCE = 0.1; // Small bounce on collision
 
 // Baby
 export const BABY_RADIUS = 8; // 16px diameter / 2

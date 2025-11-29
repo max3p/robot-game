@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS } from '../config/constants';
+import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE } from '../config/constants';
 import { PLAYER_CONTROLS } from '../config/controls';
 import { Baby } from './Baby';
 import { Weapon } from './Weapon';
@@ -10,6 +10,7 @@ export class Player extends Phaser.GameObjects.Arc {
   public heldBaby: Baby | null = null;
   public heldWeapon: Weapon | null = null;
   public facingDirection: { x: number; y: number } = { x: 0, y: -1 }; // Default facing up
+  public pushingPlayers: Set<Player> = new Set(); // Track players we're currently pushing
   private movementKeys!: {
     up: Phaser.Input.Keyboard.Key;
     down: Phaser.Input.Keyboard.Key;
@@ -28,7 +29,10 @@ export class Player extends Phaser.GameObjects.Arc {
     
     // Set up physics body
     this.body.setCircle(PLAYER_RADIUS);
-    this.body.setCollideWorldBounds(false); // We'll handle bounds manually
+    this.body.setCollideWorldBounds(false); // We'll handle bounds manually with custom bounds
+    this.body.setMass(PLAYER_MASS);
+    this.body.setBounce(PLAYER_BOUNCE, PLAYER_BOUNCE);
+    this.body.setImmovable(false); // Players can be pushed
     
     // Set up input based on player controls
     const controlConfig = PLAYER_CONTROLS[playerId as keyof typeof PLAYER_CONTROLS];
@@ -66,10 +70,20 @@ export class Player extends Phaser.GameObjects.Arc {
     
     if (moveX !== 0 || moveY !== 0) {
       const length = Math.sqrt(moveX * moveX + moveY * moveY);
-      // Use slower speed if holding baby
-      const speed = this.heldBaby ? BABY_HOLDER_SPEED : BASE_PLAYER_SPEED;
-      velocityX = (moveX / length) * speed;
-      velocityY = (moveY / length) * speed;
+      
+      // Base speed depends on holding baby
+      let baseSpeed = this.heldBaby ? BABY_HOLDER_SPEED : BASE_PLAYER_SPEED;
+      
+      // Reduce speed when pushing other players
+      const numPushing = this.pushingPlayers.size;
+      if (numPushing > 1) {
+        baseSpeed *= PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE;
+      } else if (numPushing === 1) {
+        baseSpeed *= PLAYER_PUSH_SPEED_MULTIPLIER;
+      }
+      
+      velocityX = (moveX / length) * baseSpeed;
+      velocityY = (moveY / length) * baseSpeed;
       
       // Update facing direction based on movement
       this.facingDirection = { x: moveX / length, y: moveY / length };
@@ -77,6 +91,9 @@ export class Player extends Phaser.GameObjects.Arc {
     
     // Set velocity
     this.body.setVelocity(velocityX, velocityY);
+    
+    // Clear pushing players at end of frame (will be updated by collision callbacks)
+    this.pushingPlayers.clear();
   }
 
   setHeldBaby(baby: Baby | null) {

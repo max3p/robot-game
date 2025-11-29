@@ -30,18 +30,22 @@ export class GameScene extends Phaser.Scene {
     this.setupStartingLoadout(4); // Currently hardcoded to 4 players
     
     // Set up collisions between players and walls
-    this.physics.add.collider(this.players, this.walls);
+    this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision as any);
     
     // Set up collisions between players (they can push each other)
-    this.physics.add.collider(this.players, this.players);
+    this.physics.add.collider(this.players, this.players, this.handlePlayerPlayerCollision as any);
     
     console.log(`✨ Game scene initialized and ready!`);
   }
 
   update(time: number, delta: number) {
-    // Update all players
+    // Update all players (apply input and movement)
     this.players.forEach(player => {
       player.update();
+    });
+    
+    // Constrain ALL players to bounds (including pushed players)
+    this.players.forEach(player => {
       this.constrainPlayerToBounds(player);
     });
     
@@ -248,6 +252,52 @@ export class GameScene extends Phaser.Scene {
     // The swap system will track items added via addGroundItem()
   }
 
+  private handlePlayerWallCollision(playerObj: any, wallObj: any) {
+    const player = playerObj as Player;
+    // Stop player velocity when hitting wall - Phaser handles the position correction
+    // This prevents players from being pushed through walls
+    if (player.body.touching.left || player.body.touching.right) {
+      player.body.setVelocityX(0);
+    }
+    if (player.body.touching.up || player.body.touching.down) {
+      player.body.setVelocityY(0);
+    }
+  }
+
+  private handlePlayerPlayerCollision(player1Obj: any, player2Obj: any) {
+    const player1 = player1Obj as Player;
+    const player2 = player2Obj as Player;
+    
+    // Determine which player is pushing (the one with higher velocity)
+    const p1Vel = Math.sqrt(player1.body.velocity.x ** 2 + player1.body.velocity.y ** 2);
+    const p2Vel = Math.sqrt(player2.body.velocity.x ** 2 + player2.body.velocity.y ** 2);
+    
+    // Track pushing relationships for speed reduction
+    if (p1Vel > p2Vel + 10) {
+      // Player 1 is pushing player 2
+      player1.pushingPlayers.add(player2);
+    } else if (p2Vel > p1Vel + 10) {
+      // Player 2 is pushing player 1
+      player2.pushingPlayers.add(player1);
+    }
+    
+    // Ensure players don't push each other through walls by checking bounds
+    // The bounds check in update() will handle this, but we also stop excessive velocity
+    const maxPushVelocity = 150; // Max velocity from being pushed
+    if (Math.abs(player1.body.velocity.x) > maxPushVelocity || Math.abs(player1.body.velocity.y) > maxPushVelocity) {
+      player1.body.setVelocity(
+        Phaser.Math.Clamp(player1.body.velocity.x, -maxPushVelocity, maxPushVelocity),
+        Phaser.Math.Clamp(player1.body.velocity.y, -maxPushVelocity, maxPushVelocity)
+      );
+    }
+    if (Math.abs(player2.body.velocity.x) > maxPushVelocity || Math.abs(player2.body.velocity.y) > maxPushVelocity) {
+      player2.body.setVelocity(
+        Phaser.Math.Clamp(player2.body.velocity.x, -maxPushVelocity, maxPushVelocity),
+        Phaser.Math.Clamp(player2.body.velocity.y, -maxPushVelocity, maxPushVelocity)
+      );
+    }
+  }
+
   private constrainPlayerToBounds(player: Player) {
     const grid = this.levelData.grid;
     const tileSize = this.levelData.tileSize;
@@ -261,19 +311,33 @@ export class GameScene extends Phaser.Scene {
     const minY = this.levelOffsetY + playerRadius;
     const maxY = this.levelOffsetY + levelHeight - playerRadius;
     
-    // Only constrain if player is outside bounds
-    if (player.x < minX || player.x > maxX || 
-        player.y < minY || player.y > maxY) {
-      const playerX = Phaser.Math.Clamp(player.x, minX, maxX);
-      const playerY = Phaser.Math.Clamp(player.y, minY, maxY);
-      player.setPosition(playerX, playerY);
-      // Stop velocity if hitting bounds
-      if (player.x <= minX || player.x >= maxX) {
-        player.body.setVelocityX(0);
-      }
-      if (player.y <= minY || player.y >= maxY) {
-        player.body.setVelocityY(0);
-      }
+    // Constrain player position and velocity to prevent going out of bounds
+    let needsCorrection = false;
+    let newX = player.x;
+    let newY = player.y;
+    
+    if (player.x < minX) {
+      newX = minX;
+      needsCorrection = true;
+      player.body.setVelocityX(0);
+    } else if (player.x > maxX) {
+      newX = maxX;
+      needsCorrection = true;
+      player.body.setVelocityX(0);
+    }
+    
+    if (player.y < minY) {
+      newY = minY;
+      needsCorrection = true;
+      player.body.setVelocityY(0);
+    } else if (player.y > maxY) {
+      newY = maxY;
+      needsCorrection = true;
+      player.body.setVelocityY(0);
+    }
+    
+    if (needsCorrection) {
+      player.setPosition(newX, newY);
     }
   }
 }
