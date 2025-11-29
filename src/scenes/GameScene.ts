@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
 import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
 import { Player } from '../entities/Player';
+import { Baby } from '../entities/Baby';
 
 export class GameScene extends Phaser.Scene {
   private levelData = Level1;
@@ -9,6 +10,7 @@ export class GameScene extends Phaser.Scene {
   private levelOffsetY = 0;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private players: Player[] = [];
+  private baby!: Baby;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -18,6 +20,7 @@ export class GameScene extends Phaser.Scene {
     this.renderLevel();
     this.createWallCollisions();
     this.spawnPlayers();
+    this.createBaby();
     
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls);
@@ -26,12 +29,17 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.players, this.players);
   }
 
-  update() {
+  update(time: number, delta: number) {
     // Update all players
     this.players.forEach(player => {
       player.update();
       this.constrainPlayerToBounds(player);
     });
+    
+    // Update baby (handles calm meter and rendering)
+    if (this.baby) {
+      this.baby.update(delta);
+    }
   }
 
   private renderLevel() {
@@ -122,6 +130,15 @@ export class GameScene extends Phaser.Scene {
       const offset = offsets[i - 1];
       const player = new Player(this, baseX + offset.x, baseY + offset.y, i);
       this.players.push(player);
+    }
+  }
+
+  private createBaby() {
+    // Create baby and give it to Player 1 (Phase 2.3: Baby Implementation)
+    this.baby = new Baby(this);
+    const player1 = this.players.find(p => p.playerId === 1);
+    if (player1) {
+      player1.setHeldBaby(this.baby);
     }
   }
 

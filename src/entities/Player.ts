@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { BASE_PLAYER_SPEED, PLAYER_RADIUS, PLAYER_COLORS } from '../config/constants';
+import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS } from '../config/constants';
 import { PLAYER_CONTROLS } from '../config/controls';
+import { Baby } from './Baby';
 
 export class Player extends Phaser.GameObjects.Arc {
   public body!: Phaser.Physics.Arcade.Body;
   public playerId: number;
+  public heldBaby: Baby | null = null;
   private movementKeys!: {
     up: Phaser.Input.Keyboard.Key;
     down: Phaser.Input.Keyboard.Key;
@@ -61,12 +63,21 @@ export class Player extends Phaser.GameObjects.Arc {
     
     if (moveX !== 0 || moveY !== 0) {
       const length = Math.sqrt(moveX * moveX + moveY * moveY);
-      velocityX = (moveX / length) * BASE_PLAYER_SPEED;
-      velocityY = (moveY / length) * BASE_PLAYER_SPEED;
+      // Use slower speed if holding baby
+      const speed = this.heldBaby ? BABY_HOLDER_SPEED : BASE_PLAYER_SPEED;
+      velocityX = (moveX / length) * speed;
+      velocityY = (moveY / length) * speed;
     }
     
     // Set velocity
     this.body.setVelocity(velocityX, velocityY);
+  }
+
+  setHeldBaby(baby: Baby | null) {
+    this.heldBaby = baby;
+    if (baby) {
+      baby.setHolder(this);
+    }
   }
 }
 
