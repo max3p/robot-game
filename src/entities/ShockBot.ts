@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SHOCK_SPEED, SHOCK_SIZE, SHOCK_COLOR, SHOCK_ATTACK_RANGE, SHOCK_ATTACK_COOLDOWN, SHOCK_ATTACK_DAMAGE, SHOCK_ATTACK_CHARGE_TIME, SHOCK_ATTACK_AOE_RADIUS, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
+import { SHOCK_SPEED, SHOCK_SIZE, SHOCK_COLOR, SHOCK_ATTACK_RANGE, SHOCK_ATTACK_COOLDOWN, SHOCK_ATTACK_DAMAGE, SHOCK_ATTACK_CHARGE_TIME, SHOCK_ATTACK_AOE_RADIUS, SHOCK_MIN_CHASE_DISTANCE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -71,9 +71,6 @@ export class ShockBot extends Robot {
    * @param players Optional array of players in the scene (required for ALERT/ATTACKING states)
    */
   update(delta: number, players?: Player[]): void {
-    // Call parent update for basic behavior (patrol, visuals, attack timer)
-    super.update(delta);
-
     // Update charge timer
     if (this.chargeTimer > 0) {
       this.chargeTimer -= delta;
@@ -83,6 +80,10 @@ export class ShockBot extends Robot {
     if (this.shockTimer > 0) {
       this.shockTimer -= delta;
     }
+    
+    // Call parent update for basic behavior (patrol, visuals, attack timer)
+    // BUT skip smooth movement if we're in ALERT or ATTACKING state (we handle movement directly)
+    super.update(delta);
 
     // Handle state-specific behavior (requires players array)
     if (players) {
@@ -95,6 +96,15 @@ export class ShockBot extends Robot {
 
     // Update visuals
     this.updateAttackVisuals();
+    
+    // CRITICAL: During shocking phase, ensure velocity is ALWAYS zero at the end of update
+    // This overrides any movement that might have been set by parent class or other systems
+    if (this.isShocking || this.state === RobotState.ATTACKING) {
+      // During shocking, absolutely no movement allowed
+      if (this.isShocking) {
+        this.body.setVelocity(0, 0);
+      }
+    }
   }
 
   /**
@@ -158,6 +168,15 @@ export class ShockBot extends Robot {
       this.state = RobotState.ATTACKING;
       this.attackTargetPlayer = targetPlayer;
       this.body.setVelocity(0, 0); // Stop moving to attack
+    } else if (distanceToTarget <= SHOCK_MIN_CHASE_DISTANCE) {
+      // Too close - stop chasing and just stand still (face the player)
+      const direction: Vector2 = {
+        x: this.alertTarget.x - this.x,
+        y: this.alertTarget.y - this.y
+      };
+      const normalized = normalize(direction);
+      this.body.setVelocity(0, 0); // Stop moving
+      this.facingDirection = normalized;
     } else {
       // Need to get closer - always chase the target
       const direction: Vector2 = {
@@ -195,50 +214,7 @@ export class ShockBot extends Robot {
       return;
     }
 
-    // Check if still close enough for AOE attack
-    const distanceToTarget = distance({ x: this.x, y: this.y }, { x: this.attackTargetPlayer.x, y: this.attackTargetPlayer.y });
-    const aoeAttackRange = SHOCK_ATTACK_AOE_RADIUS;
-    
-    // If charging, allow slight movement away (player might move), but if too far, cancel
-    if (this.isCharging && distanceToTarget > aoeAttackRange * 1.5) {
-      // Too far during charge, cancel and resume chase
-      this.state = RobotState.ALERT;
-      this.attackTargetPlayer = null;
-      this.isCharging = false;
-      this.chargeTimer = 0;
-      this.isShocking = false;
-      this.shockTimer = 0;
-      this.clearAttackVisuals();
-      return;
-    }
-    
-    // If shocking and player moved too far, cancel
-    if (this.isShocking && distanceToTarget > SHOCK_ATTACK_AOE_RADIUS * 1.5) {
-      // Too far during shock, cancel and resume chase
-      this.state = RobotState.ALERT;
-      this.attackTargetPlayer = null;
-      this.isShocking = false;
-      this.shockTimer = 0;
-      this.clearAttackVisuals();
-      return;
-    }
-    
-    // If not charging and out of AOE range, resume chase
-    if (!this.isCharging && distanceToTarget > aoeAttackRange) {
-      this.state = RobotState.ALERT;
-      this.attackTargetPlayer = null;
-      this.clearAttackVisuals();
-      return;
-    }
-
-    // Face the target
-    const direction: Vector2 = {
-      x: this.attackTargetPlayer.x - this.x,
-      y: this.attackTargetPlayer.y - this.y
-    };
-    this.facingDirection = normalize(direction);
-
-    // If shocking, expand the shock radius and check for hits
+    // PRIORITY 1: If shocking, MUST complete shock before any state changes
     if (this.isShocking) {
       // Keep facing target
       const direction: Vector2 = {
@@ -247,18 +223,31 @@ export class ShockBot extends Robot {
       };
       this.facingDirection = normalize(direction);
       
+      // CRITICAL: Force robot to stay completely still during shock
+      this.body.setVelocity(0, 0);
+      
       // Check for player collisions with expanding shock
       this.checkShockHits(players);
       
       if (this.shockTimer <= 0) {
-        // Shock complete, return to alert to chase again
+        // Shock complete - clear visuals first
+        this.clearAttackVisuals();
+        
+        // Clear shocking state
         this.isShocking = false;
         this.shockTimer = 0;
-        this.clearAttackVisuals();
+        
+        // Ensure velocity is zero before state change
+        this.body.setVelocity(0, 0);
+        
+        // Then return to alert to chase again
         this.state = RobotState.ALERT;
         this.attackTargetPlayer = null;
+      } else {
+        // Still shocking - absolutely ensure robot stays still
+        this.body.setVelocity(0, 0);
       }
-      return;
+      return; // Must stay in ATTACKING state until shock completes
     }
     
     // If charging, continue charging (must stay still)

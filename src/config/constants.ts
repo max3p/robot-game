@@ -66,6 +66,7 @@ export const SHOCK_ATTACK_COOLDOWN = 2000; // milliseconds
 export const SHOCK_ATTACK_DAMAGE = 1;
 export const SHOCK_ATTACK_CHARGE_TIME = 500; // milliseconds
 export const SHOCK_ATTACK_AOE_RADIUS = 75; // pixels (half of vision radius - robot must get closer)
+export const SHOCK_MIN_CHASE_DISTANCE = 50; // pixels (robot stops chasing if closer than this)
 
 // Flame-Bot constants (for future phases)
 export const FLAME_LIGHT_RADIUS = 180;
