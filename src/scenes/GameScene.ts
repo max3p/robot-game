@@ -8,7 +8,7 @@ export class GameScene extends Phaser.Scene {
   private levelOffsetX = 0;
   private levelOffsetY = 0;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
-  private player!: Player;
+  private players: Player[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -17,17 +17,21 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.renderLevel();
     this.createWallCollisions();
-    this.spawnPlayer();
+    this.spawnPlayers();
     
-    // Set up collision between player and walls
-    this.physics.add.collider(this.player, this.walls);
+    // Set up collisions between players and walls
+    this.physics.add.collider(this.players, this.walls);
+    
+    // Set up collisions between players (they can push each other)
+    this.physics.add.collider(this.players, this.players);
   }
 
   update() {
-    if (this.player) {
-      this.player.update();
-      this.constrainPlayerToBounds();
-    }
+    // Update all players
+    this.players.forEach(player => {
+      player.update();
+      this.constrainPlayerToBounds(player);
+    });
   }
 
   private renderLevel() {
@@ -96,18 +100,32 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private spawnPlayer() {
+  private spawnPlayers() {
     const startPos = this.levelData.startPosition;
     const tileSize = this.levelData.tileSize;
     
-    // Convert tile coordinates to world coordinates
-    const worldX = startPos.x * tileSize + this.levelOffsetX + tileSize / 2;
-    const worldY = startPos.y * tileSize + this.levelOffsetY + tileSize / 2;
+    // Base position in world coordinates
+    const baseX = startPos.x * tileSize + this.levelOffsetX + tileSize / 2;
+    const baseY = startPos.y * tileSize + this.levelOffsetY + tileSize / 2;
     
-    this.player = new Player(this, worldX, worldY);
+    // Spawn 4 players with slight offsets so they don't overlap
+    const offsetDistance = 20; // pixels
+    const offsets = [
+      { x: -offsetDistance, y: -offsetDistance }, // Player 1: top-left
+      { x: offsetDistance, y: -offsetDistance },  // Player 2: top-right
+      { x: -offsetDistance, y: offsetDistance },  // Player 3: bottom-left
+      { x: offsetDistance, y: offsetDistance }    // Player 4: bottom-right
+    ];
+    
+    // Hardcode to 4 players for Phase 2.1
+    for (let i = 1; i <= 4; i++) {
+      const offset = offsets[i - 1];
+      const player = new Player(this, baseX + offset.x, baseY + offset.y, i);
+      this.players.push(player);
+    }
   }
 
-  private constrainPlayerToBounds() {
+  private constrainPlayerToBounds(player: Player) {
     const grid = this.levelData.grid;
     const tileSize = this.levelData.tileSize;
     const levelWidth = grid[0].length * tileSize;
@@ -121,17 +139,17 @@ export class GameScene extends Phaser.Scene {
     const maxY = this.levelOffsetY + levelHeight - playerRadius;
     
     // Only constrain if player is outside bounds
-    if (this.player.x < minX || this.player.x > maxX || 
-        this.player.y < minY || this.player.y > maxY) {
-      const playerX = Phaser.Math.Clamp(this.player.x, minX, maxX);
-      const playerY = Phaser.Math.Clamp(this.player.y, minY, maxY);
-      this.player.setPosition(playerX, playerY);
+    if (player.x < minX || player.x > maxX || 
+        player.y < minY || player.y > maxY) {
+      const playerX = Phaser.Math.Clamp(player.x, minX, maxX);
+      const playerY = Phaser.Math.Clamp(player.y, minY, maxY);
+      player.setPosition(playerX, playerY);
       // Stop velocity if hitting bounds
-      if (this.player.x <= minX || this.player.x >= maxX) {
-        this.player.body.setVelocityX(0);
+      if (player.x <= minX || player.x >= maxX) {
+        player.body.setVelocityX(0);
       }
-      if (this.player.y <= minY || this.player.y >= maxY) {
-        this.player.body.setVelocityY(0);
+      if (player.y <= minY || player.y >= maxY) {
+        player.body.setVelocityY(0);
       }
     }
   }
