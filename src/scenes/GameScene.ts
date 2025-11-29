@@ -6,6 +6,7 @@ import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
 import { Robot } from '../entities/Robot';
 import { SpiderBot } from '../entities/SpiderBot';
+import { ShockBot } from '../entities/ShockBot';
 import { SwapSystem } from '../systems/SwapSystem';
 import { DetectionSystem } from '../systems/DetectionSystem';
 import { WeaponType, RobotType } from '../types';
@@ -76,8 +77,8 @@ export class GameScene extends Phaser.Scene {
     
     // Update all robots
     this.robots.forEach(robot => {
-      // SpiderBot and other specific robot types need player list
-      if (robot instanceof SpiderBot) {
+      // SpiderBot, ShockBot and other specific robot types need player list
+      if (robot instanceof SpiderBot || robot instanceof ShockBot) {
         robot.update(delta, this.players);
       } else {
         // Base Robot class uses standard update
@@ -320,14 +321,18 @@ export class GameScene extends Phaser.Scene {
    * Full spawning system will be implemented in Phase 3.7
    */
   private spawnTestRobot() {
-    if (this.levelData.robots.length === 0) {
+    const tileSize = this.levelData.tileSize;
+    
+    // Find a Shock-Bot spawn from level data, or use the first robot
+    let robotSpawn = this.levelData.robots.find(r => r.type === RobotType.SHOCK_BOT);
+    if (!robotSpawn && this.levelData.robots.length > 0) {
+      robotSpawn = this.levelData.robots[0]; // Fallback to first robot
+    }
+    
+    if (!robotSpawn) {
       console.log('⚠️ No robots in level data');
       return;
     }
-
-    // Spawn the first robot from level data as a test
-    const robotSpawn = this.levelData.robots[0];
-    const tileSize = this.levelData.tileSize;
     
     // Convert spawn position from tile coordinates to world coordinates
     const worldX = robotSpawn.position.x * tileSize + this.levelOffsetX + tileSize / 2;
@@ -339,6 +344,15 @@ export class GameScene extends Phaser.Scene {
     
     if (robotSpawn.type === RobotType.SPIDER_BOT) {
       robot = new SpiderBot(
+        this,
+        worldX,
+        worldY,
+        this.levelOffsetX,
+        this.levelOffsetY,
+        tileSize
+      );
+    } else if (robotSpawn.type === RobotType.SHOCK_BOT) {
+      robot = new ShockBot(
         this,
         worldX,
         worldY,

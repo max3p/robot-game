@@ -54,10 +54,18 @@ export const SPIDER_ATTACK_RANGE = 25; // pixels (melee)
 export const SPIDER_ATTACK_COOLDOWN = 1000; // milliseconds
 export const SPIDER_ATTACK_DAMAGE = 1;
 
-// Shock-Bot constants (for future phases)
-export const SHOCK_LIGHT_RADIUS = 150;
-export const SHOCK_LIGHT_ANGLE = 45; // degrees
+// Shock-Bot constants
+export const SHOCK_SPEED = 60; // pixels per second (patrol speed, cut in half from 120)
+export const SHOCK_SIZE = 36; // pixels
+export const SHOCK_COLOR = 0x4169E1; // Blue
+export const SHOCK_LIGHT_RADIUS = 150; // pixels
+export const SHOCK_LIGHT_ANGLE = 45; // degrees (total cone angle)
 export const SHOCK_LIGHT_COLOR = 0x4169E1; // Blue
+export const SHOCK_ATTACK_RANGE = 150; // pixels (ranged, matches vision radius - for detection)
+export const SHOCK_ATTACK_COOLDOWN = 2000; // milliseconds
+export const SHOCK_ATTACK_DAMAGE = 1;
+export const SHOCK_ATTACK_CHARGE_TIME = 500; // milliseconds
+export const SHOCK_ATTACK_AOE_RADIUS = 75; // pixels (half of vision radius - robot must get closer)
 
 // Flame-Bot constants (for future phases)
 export const FLAME_LIGHT_RADIUS = 180;
