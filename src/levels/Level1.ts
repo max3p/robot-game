@@ -22,40 +22,17 @@ export const Level1: LevelData = {
     {
       type: RobotType.SPIDER_BOT,
       position: { x: 5, y: 2 },
-      patrolPath: [
-        { x: 5, y: 2 },
-        { x: 5, y: 4 },
-        { x: 3, y: 4 },
-        { x: 3, y: 2 }
-      ]
+      patrolPath: [] // Legacy - not used (robots use random walk AI)
+    },
+    {
+      type: RobotType.SHOCK_BOT,
+      position: { x: 4, y: 4 },
+      patrolPath: [] // Legacy - not used (robots use random walk AI)
     },
     {
       type: RobotType.FLAME_BOT,
-      position: { x: 4, y: 4 },
-      patrolPath: [
-        { x: 4, y: 4 },
-        { x: 4, y: 6 },
-        { x: 6, y: 6 }
-      ]
-    },
-    {
-      type: RobotType.SPIDER_BOT,
       position: { x: 7, y: 5 },
-      patrolPath: [
-        { x: 7, y: 5 },
-        { x: 7, y: 8 },
-        { x: 5, y: 8 },
-        { x: 5, y: 5 }
-      ]
-    },
-    {
-      type: RobotType.SPIDER_BOT,
-      position: { x: 2, y: 7 },
-      patrolPath: [
-        { x: 2, y: 7 },
-        { x: 2, y: 5 },
-        { x: 4, y: 5 }
-      ]
+      patrolPath: [] // Legacy - not used (robots use random walk AI)
     }
   ],
   groundItems: [

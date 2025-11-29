@@ -10,7 +10,7 @@ import { ShockBot } from '../entities/ShockBot';
 import { FlameBot } from '../entities/FlameBot';
 import { SwapSystem } from '../systems/SwapSystem';
 import { DetectionSystem } from '../systems/DetectionSystem';
-import { WeaponType, RobotType } from '../types';
+import { RobotSpawn, WeaponType, RobotType } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private levelData = Level1;
@@ -36,7 +36,7 @@ export class GameScene extends Phaser.Scene {
     this.initializeSwapSystem();
     this.initializeDetectionSystem();
     this.setupStartingLoadout(this.players.length);
-    this.spawnTestRobot(); // Light version for testing/debugging
+    this.spawnRobots(); // Phase 3.7: Robust spawning system
     
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
@@ -317,85 +317,103 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Spawns a test robot for debugging purposes
-   * Light version - spawns only the first robot from level data
-   * Full spawning system will be implemented in Phase 3.7
+   * Spawns all robots from level data based on player count
+   * Phase 3.7: Robust spawning system
+   * Scales robot count based on number of players
    */
-  private spawnTestRobot() {
+  private spawnRobots() {
     const tileSize = this.levelData.tileSize;
+    const playerCount = this.players.length;
     
-    // Find a Flame-Bot spawn from level data, or use the first robot
-    let robotSpawn = this.levelData.robots.find(r => r.type === RobotType.FLAME_BOT);
-    if (!robotSpawn && this.levelData.robots.length > 0) {
-      robotSpawn = this.levelData.robots[0]; // Fallback to first robot
-    }
-    
-    if (!robotSpawn) {
-      console.log('⚠️ No robots in level data');
+    if (this.levelData.robots.length === 0) {
+      console.log('⚠️ No robots defined in level data');
       return;
     }
     
-    // Convert spawn position from tile coordinates to world coordinates
-    const worldX = robotSpawn.position.x * tileSize + this.levelOffsetX + tileSize / 2;
-    const worldY = robotSpawn.position.y * tileSize + this.levelOffsetY + tileSize / 2;
+    // Get robots to spawn based on player count scaling
+    const robotsToSpawn = this.getRobotsForPlayerCount(playerCount);
     
-    // Phase 3.4: Create specific robot types
-    // For now, create SpiderBot for spider-bot type, fallback to base Robot for others
-    let robot: Robot;
-    
-    if (robotSpawn.type === RobotType.SPIDER_BOT) {
-      robot = new SpiderBot(
-        this,
-        worldX,
-        worldY,
-        this.levelOffsetX,
-        this.levelOffsetY,
-        tileSize
-      );
-    } else if (robotSpawn.type === RobotType.SHOCK_BOT) {
-      robot = new ShockBot(
-        this,
-        worldX,
-        worldY,
-        this.levelOffsetX,
-        this.levelOffsetY,
-        tileSize
-      );
-    } else if (robotSpawn.type === RobotType.FLAME_BOT) {
-      robot = new FlameBot(
-        this,
-        worldX,
-        worldY,
-        this.levelOffsetX,
-        this.levelOffsetY,
-        tileSize
-      );
-    } else {
-      // Other robot types - create base Robot for now (will be implemented in later phases)
-      robot = new Robot(
-        this,
-        robotSpawn.type,
-        worldX,
-        worldY,
-        this.levelOffsetX,
-        this.levelOffsetY,
-        tileSize,
-        SPIDER_SPEED,
-        SPIDER_SIZE,
-        SPIDER_COLOR
-      );
+    if (robotsToSpawn.length === 0) {
+      console.log(`⚠️ No robots to spawn for ${playerCount} player(s)`);
+      return;
     }
     
-    // Set level grid for random walk AI
-    robot.setLevelGrid(this.levelData.grid);
+    // Spawn each robot
+    let spawnedCount = 0;
+    for (const robotSpawn of robotsToSpawn) {
+      // Convert spawn position from tile coordinates to world coordinates
+      const worldX = robotSpawn.position.x * tileSize + this.levelOffsetX + tileSize / 2;
+      const worldY = robotSpawn.position.y * tileSize + this.levelOffsetY + tileSize / 2;
+      
+      // Create robot based on type
+      let robot: Robot;
+      
+      if (robotSpawn.type === RobotType.SPIDER_BOT) {
+        robot = new SpiderBot(
+          this,
+          worldX,
+          worldY,
+          this.levelOffsetX,
+          this.levelOffsetY,
+          tileSize
+        );
+      } else if (robotSpawn.type === RobotType.SHOCK_BOT) {
+        robot = new ShockBot(
+          this,
+          worldX,
+          worldY,
+          this.levelOffsetX,
+          this.levelOffsetY,
+          tileSize
+        );
+      } else if (robotSpawn.type === RobotType.FLAME_BOT) {
+        robot = new FlameBot(
+          this,
+          worldX,
+          worldY,
+          this.levelOffsetX,
+          this.levelOffsetY,
+          tileSize
+        );
+      } else {
+        // Unknown robot type - skip with warning
+        console.warn(`⚠️ Unknown robot type: ${robotSpawn.type}, skipping spawn`);
+        continue;
+      }
+      
+      // Set level grid for random walk AI and pathfinding
+      robot.setLevelGrid(this.levelData.grid);
+      
+      // Add robot to scene
+      this.robots.push(robot);
+      spawnedCount++;
+      
+      console.log(`🤖 Robot spawned: ${robotSpawn.type} at tile (${robotSpawn.position.x}, ${robotSpawn.position.y}) [world: (${worldX.toFixed(0)}, ${worldY.toFixed(0)})]`);
+    }
     
-    this.robots.push(robot);
-    console.log(`🤖 Test robot spawned: ${robotSpawn.type} at (${worldX.toFixed(0)}, ${worldY.toFixed(0)})`);
+    console.log(`✅ Robots spawned: ${spawnedCount} robot(s) for ${playerCount} player(s)`);
     
     // Update detection system with robots after spawning
     if (this.detectionSystem) {
       this.detectionSystem.setRobots(this.robots);
     }
+  }
+  
+  /**
+   * Gets robots to spawn based on player count scaling
+   * Phase 3.7: Scales robot count according to player count
+   * @param playerCount Number of players
+   * @returns Array of robot spawns to actually spawn
+   */
+  private getRobotsForPlayerCount(playerCount: number): RobotSpawn[] {
+    // For now, Level 1 has one of each type (Spider-Bot, Shock-Bot, Flame-Bot)
+    // Future: Implement proper scaling logic based on level and player count
+    // For Level 1, spawn all robots regardless of player count
+    // (Scaling can be implemented in future levels)
+    
+    // Return all robots from level data
+    // TODO: Implement proper scaling per level (see implementation-docs.md section 6.3)
+    return this.levelData.robots;
   }
 
   /**
