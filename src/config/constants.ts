@@ -89,6 +89,7 @@ export const ALERT_SPEED_MULTIPLIER = 0.85; // Robots move 85% of player speed w
 export const ROBOT_ACCELERATION = 400; // pixels per second squared
 export const ROBOT_DECELERATION = 600; // pixels per second squared
 export const ROBOT_CHASE_ABANDON_DISTANCE = 3 * TILE_SIZE; // Distance in pixels (3 tiles) at which robot gives up chasing and returns to patrol
+export const ROBOT_CLOSE_RANGE_DETECTION_RADIUS = 80; // pixels - robots detect players within this radius regardless of facing direction
 
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging

@@ -78,6 +78,7 @@ export class SpiderBot extends Robot {
       // No target, return to patrol
       this.state = RobotState.PATROL;
       this.body.setVelocity(0, 0);
+      this.clearChasePath(); // Clear path when returning to patrol
       // Start repositioning to center of current tile
       this.startRepositioning();
       return;
@@ -130,22 +131,28 @@ export class SpiderBot extends Robot {
       this.state = RobotState.ATTACKING;
       this.attackTargetPlayer = targetPlayer;
       this.body.setVelocity(0, 0); // Stop moving to attack
+      this.clearChasePath(); // Clear path when attacking
     } else {
-      // Chase the target
-      const direction: Vector2 = {
-        x: this.alertTarget.x - this.x,
-        y: this.alertTarget.y - this.y
-      };
-      
-      const normalized = normalize(direction);
-      // Chase speed: slower than player (85% of player base speed = 170 pixels/sec)
+      // Use pathfinding to chase the target
       const chaseSpeed = BASE_PLAYER_SPEED * ALERT_SPEED_MULTIPLIER;
       
-      // Move toward target directly (alert state bypasses smooth movement for responsive chasing)
-      this.body.setVelocity(normalized.x * chaseSpeed, normalized.y * chaseSpeed);
+      // Calculate path to target
+      const pathFound = this.calculatePathToTarget(this.alertTarget);
       
-      // Update facing direction
-      this.facingDirection = normalized;
+      if (pathFound) {
+        // Follow the path
+        this.followPath(delta, chaseSpeed);
+      } else {
+        // No path found - fallback to direct movement (might be blocked, but try anyway)
+        const direction: Vector2 = {
+          x: this.alertTarget.x - this.x,
+          y: this.alertTarget.y - this.y
+        };
+        
+        const normalized = normalize(direction);
+        this.body.setVelocity(normalized.x * chaseSpeed, normalized.y * chaseSpeed);
+        this.facingDirection = normalized;
+      }
     }
   }
 

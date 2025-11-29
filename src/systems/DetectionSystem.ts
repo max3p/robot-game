@@ -2,6 +2,7 @@ import { Robot } from '../entities/Robot';
 import { Player } from '../entities/Player';
 import { Vector2, RobotState } from '../types';
 import { distance, vectorToAngle, normalizeAngle, hasLineOfSight } from '../utils/geometry';
+import { ROBOT_CLOSE_RANGE_DETECTION_RADIUS } from '../config/constants';
 
 /**
  * DetectionSystem handles robot detection of players
@@ -70,16 +71,14 @@ export class DetectionSystem {
   /**
    * Checks if a player is detected by a robot
    * Based on Section 4.6.1 of implementation docs
+   * Detection happens if player is:
+   * 1. Within vision cone AND line of sight, OR
+   * 2. Within close-range detection radius (regardless of facing direction)
    * @param robot The robot doing the detection
    * @param player The player to check
    * @returns true if player is detected, false otherwise
    */
   private isPlayerDetected(robot: Robot, player: Player): boolean {
-    // Skip if robot doesn't have light properties set up yet
-    if (robot.lightRadius === 0 || robot.lightAngle === 0) {
-      return false;
-    }
-
     // Get vector from robot to player
     const directionToPlayer: Vector2 = {
       x: player.x - robot.x,
@@ -87,7 +86,32 @@ export class DetectionSystem {
     };
     const distanceToPlayer = distance({ x: robot.x, y: robot.y }, { x: player.x, y: player.y });
 
-    // Check distance
+    // METHOD 1: Close-range detection (within small radius, regardless of facing direction)
+    if (distanceToPlayer <= ROBOT_CLOSE_RANGE_DETECTION_RADIUS) {
+      // Check line of sight for close-range detection too
+      const hasLOS = hasLineOfSight(
+        { x: robot.x, y: robot.y },
+        { x: player.x, y: player.y },
+        this.levelGrid,
+        this.tileSize,
+        this.levelOffsetX,
+        this.levelOffsetY
+      );
+
+      if (hasLOS) {
+        // Player is close enough - detected!
+        console.log(`[Detection] ✅ Player ${player.playerId} DETECTED at close range! (distance: ${distanceToPlayer.toFixed(0)}px)`);
+        return true;
+      }
+    }
+
+    // METHOD 2: Vision cone detection (existing logic)
+    // Skip if robot doesn't have light properties set up yet
+    if (robot.lightRadius === 0 || robot.lightAngle === 0) {
+      return false;
+    }
+
+    // Check distance (must be within vision radius)
     if (distanceToPlayer > robot.lightRadius) {
       return false;
     }
@@ -123,9 +147,9 @@ export class DetectionSystem {
       return false;
     }
 
-    // All checks passed - player is detected!
+    // All checks passed - player is detected via vision cone!
     // Log detection details (always log detections, no throttling)
-    console.log(`[Detection] ✅ Player ${player.playerId} DETECTED! (distance: ${distanceToPlayer.toFixed(0)}px, angle: ${(angleDifference * 180 / Math.PI).toFixed(1)}°)`);
+    console.log(`[Detection] ✅ Player ${player.playerId} DETECTED via vision cone! (distance: ${distanceToPlayer.toFixed(0)}px, angle: ${(angleDifference * 180 / Math.PI).toFixed(1)}°)`);
     return true;
   }
 

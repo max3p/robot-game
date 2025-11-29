@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION } from '../config/constants';
+import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS } from '../config/constants';
+import { findPath, pathToWorldCoordinates } from '../utils/pathfinding';
+import { distance, normalize } from '../utils/geometry';
 
 export class Robot extends Phaser.GameObjects.Rectangle {
   public body!: Phaser.Physics.Arcade.Body;
@@ -35,6 +37,13 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   private isRepositioning: boolean = false; // True when robot needs to reposition to tile center after chase
   private repositionTarget: Vector2 | null = null; // Target position for repositioning (center of current tile)
   
+  // Pathfinding state for chase AI
+  private chasePath: Vector2[] = []; // Current path in world coordinates
+  private currentPathIndex: number = 0; // Current waypoint index in chase path
+  private pathRecalculationCooldown: number = 0; // Cooldown before recalculating path (ms)
+  private readonly PATH_RECALCULATION_COOLDOWN_MS = 500; // Recalculate path at most once per 500ms
+  private lastPathTargetTile: Vector2 | null = null; // Last tile we calculated a path to
+  
   // Behavior states for patrol AI
   private patrolBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';
   private behaviorTimer: number = 0;
@@ -62,6 +71,7 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   // Visual debug components for detection visualization (only created if DEBUG_MODE is enabled)
   private detectionRadiusCircle?: Phaser.GameObjects.Graphics;
   private detectionCone?: Phaser.GameObjects.Graphics;
+  private closeRangeDetectionCircle?: Phaser.GameObjects.Graphics;
 
   /**
    * Creates a new Robot instance
@@ -168,6 +178,11 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       this.behaviorTimer -= delta;
     }
     
+    // Update path recalculation cooldown
+    if (this.pathRecalculationCooldown > 0) {
+      this.pathRecalculationCooldown -= delta;
+    }
+    
     // State-based behavior is handled by subclasses
     // Base class only handles patrol for generic robots
     if (this.state === RobotState.PATROL) {
@@ -227,10 +242,12 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     // Create graphics objects for visualization
     this.detectionRadiusCircle = this.scene.add.graphics();
     this.detectionCone = this.scene.add.graphics();
+    this.closeRangeDetectionCircle = this.scene.add.graphics();
     
     // Set depth so visuals render below robot but above floor
     this.detectionRadiusCircle.setDepth(5);
     this.detectionCone.setDepth(6);
+    this.closeRangeDetectionCircle.setDepth(4); // Below vision radius circle
     
     // Set alpha for low opacity - visuals will be semi-transparent
     // Individual fill/stroke alpha values are set in update methods
@@ -243,11 +260,20 @@ export class Robot extends Phaser.GameObjects.Rectangle {
    * Updates the detection visuals to match robot's current position and facing direction
    */
   private updateDetectionVisuals() {
-    if (!this.detectionRadiusCircle || !this.detectionCone || this.lightRadius === 0) {
+    if (!this.detectionRadiusCircle || !this.detectionCone || !this.closeRangeDetectionCircle || this.lightRadius === 0) {
       return;
     }
     
-    // Update detection radius circle
+    // Update close-range detection circle (always visible, smaller radius)
+    this.closeRangeDetectionCircle.clear();
+    // Low opacity circle showing close-range detection radius
+    this.closeRangeDetectionCircle.lineStyle(2, this.lightColor, 0.4); // 40% opacity outline
+    this.closeRangeDetectionCircle.strokeCircle(this.x, this.y, ROBOT_CLOSE_RANGE_DETECTION_RADIUS);
+    // Fill with very low opacity
+    this.closeRangeDetectionCircle.fillStyle(this.lightColor, 0.1); // 10% opacity fill
+    this.closeRangeDetectionCircle.fillCircle(this.x, this.y, ROBOT_CLOSE_RANGE_DETECTION_RADIUS);
+    
+    // Update detection radius circle (vision cone radius)
     this.detectionRadiusCircle.clear();
     // Low opacity circle outline showing detection radius
     this.detectionRadiusCircle.lineStyle(2, this.lightColor, 0.3); // 30% opacity outline
@@ -723,6 +749,109 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   }
 
   /**
+   * Calculates a path from robot's current position to target position using A* pathfinding
+   * @param targetWorldPos Target position in world coordinates
+   * @returns true if path was found, false otherwise
+   */
+  protected calculatePathToTarget(targetWorldPos: Vector2): boolean {
+    // Convert positions to tile coordinates
+    const robotTile = this.worldToTileCoordinates(this.x, this.y);
+    const targetTile = this.worldToTileCoordinates(targetWorldPos.x, targetWorldPos.y);
+
+    // Check if we need to recalculate (target tile changed or cooldown expired)
+    const targetTileChanged = !this.lastPathTargetTile || 
+      this.lastPathTargetTile.x !== targetTile.x || 
+      this.lastPathTargetTile.y !== targetTile.y;
+
+    // Recalculate path if target changed, path is empty, or cooldown expired
+    if (this.chasePath.length === 0 || (targetTileChanged && this.pathRecalculationCooldown <= 0)) {
+      // Find path using A* algorithm
+      const tilePath = findPath(this.levelGrid, robotTile, targetTile);
+
+      if (tilePath.length === 0) {
+        // No path found - might be unreachable or same tile
+        this.chasePath = [];
+        this.currentPathIndex = 0;
+        this.lastPathTargetTile = targetTile;
+        return false;
+      }
+
+      // Convert path to world coordinates
+      this.chasePath = pathToWorldCoordinates(
+        tilePath,
+        this.tileSize,
+        this.levelOffsetX,
+        this.levelOffsetY
+      );
+      
+      // Reset path index
+      this.currentPathIndex = 0;
+      this.lastPathTargetTile = targetTile;
+      this.pathRecalculationCooldown = this.PATH_RECALCULATION_COOLDOWN_MS;
+
+      if (DEBUG_MODE && this.shouldLogDebug()) {
+        console.log(`[Robot ${this.robotType}] Calculated path with ${this.chasePath.length} waypoints to tile (${targetTile.x}, ${targetTile.y})`);
+      }
+
+      return true;
+    }
+
+    return this.chasePath.length > 0;
+  }
+
+  /**
+   * Follows the current chase path, moving toward the next waypoint
+   * @param delta Time delta in milliseconds
+   * @param chaseSpeed Speed to move at (pixels per second)
+   * @returns true if moving along path, false if path is complete or invalid
+   */
+  protected followPath(delta: number, chaseSpeed: number): boolean {
+    // If no path, can't follow
+    if (this.chasePath.length === 0) {
+      return false;
+    }
+
+    // Get current waypoint
+    const currentWaypoint = this.chasePath[this.currentPathIndex];
+    const distanceToWaypoint = distance({ x: this.x, y: this.y }, currentWaypoint);
+
+    // Check if we've reached the current waypoint
+    if (distanceToWaypoint <= this.tileReachDistance) {
+      // Move to next waypoint
+      this.currentPathIndex++;
+
+      // Check if path is complete
+      if (this.currentPathIndex >= this.chasePath.length) {
+        // Path complete
+        this.chasePath = [];
+        this.currentPathIndex = 0;
+        return false;
+      }
+    }
+
+    // Move toward current waypoint
+    const direction: Vector2 = {
+      x: this.chasePath[this.currentPathIndex].x - this.x,
+      y: this.chasePath[this.currentPathIndex].y - this.y
+    };
+
+    const normalized = normalize(direction);
+    this.body.setVelocity(normalized.x * chaseSpeed, normalized.y * chaseSpeed);
+    this.facingDirection = normalized;
+
+    return true;
+  }
+
+  /**
+   * Clears the current chase path (used when returning to patrol or target changes)
+   */
+  protected clearChasePath(): void {
+    this.chasePath = [];
+    this.currentPathIndex = 0;
+    this.lastPathTargetTile = null;
+  }
+
+  /**
    * Cleanup method to destroy visual debug components
    */
   destroy() {
@@ -732,6 +861,9 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     }
     if (this.detectionCone) {
       this.detectionCone.destroy();
+    }
+    if (this.closeRangeDetectionCircle) {
+      this.closeRangeDetectionCircle.destroy();
     }
     
     // Call parent destroy
