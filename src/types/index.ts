@@ -38,3 +38,12 @@ export enum WeaponType {
   WATER_GUN = 'WATER_GUN'
 }
 
+export enum RobotState {
+  PATROL = 'PATROL',
+  ALERT = 'ALERT',
+  ATTACKING = 'ATTACKING',
+  INVESTIGATING = 'INVESTIGATING',
+  DISABLED = 'DISABLED',
+  DEAD = 'DEAD'
+}
+

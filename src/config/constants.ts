@@ -43,6 +43,11 @@ export const SWAP_PROGRESS_BAR_HEIGHT = 4;
 export const SWAP_PROGRESS_BAR_OFFSET_Y = -30; // Offset above players during swap
 export const PUSH_VELOCITY_THRESHOLD = 10; // Velocity difference to determine who's pushing
 
+// Robot (placeholder values for testing - full constants in Phase 3.7)
+export const SPIDER_SPEED = 180; // pixels per second
+export const SPIDER_SIZE = 24; // pixels
+export const SPIDER_COLOR = 0xFF69B4; // Pink
+
 // Debug
 export const DEBUG_MODE = false; // Enable verbose debug logging
 

@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
+import { Robot } from '../entities/Robot';
 import { SwapSystem } from '../systems/SwapSystem';
-import { WeaponType } from '../types';
+import { WeaponType, RobotType } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private levelData = Level1;
@@ -13,6 +14,7 @@ export class GameScene extends Phaser.Scene {
   private levelOffsetY = 0;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private players: Player[] = [];
+  private robots: Robot[] = [];
   private baby!: Baby;
   private swapSystem!: SwapSystem;
 
@@ -28,12 +30,16 @@ export class GameScene extends Phaser.Scene {
     this.spawnPlayers();
     this.initializeSwapSystem();
     this.setupStartingLoadout(this.players.length);
+    this.spawnTestRobot(); // Light version for testing/debugging
     
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
     
     // Set up collisions between players (they can push each other)
     this.physics.add.collider(this.players, this.players, this.handlePlayerPlayerCollision.bind(this));
+    
+    // Set up collisions between robots and walls
+    this.physics.add.collider(this.robots, this.walls, this.handleRobotWallCollision.bind(this));
     
     console.log(`✨ Game scene initialized and ready!`);
   }
@@ -62,6 +68,11 @@ export class GameScene extends Phaser.Scene {
       if (child instanceof Weapon) {
         child.update();
       }
+    });
+    
+    // Update all robots
+    this.robots.forEach(robot => {
+      robot.update(delta);
     });
   }
 
@@ -273,6 +284,59 @@ export class GameScene extends Phaser.Scene {
   private initializeSwapSystem() {
     this.swapSystem = new SwapSystem(this);
     this.swapSystem.setPlayers(this.players);
+  }
+
+  /**
+   * Spawns a test robot for debugging purposes
+   * Light version - spawns only the first robot from level data
+   * Full spawning system will be implemented in Phase 3.7
+   */
+  private spawnTestRobot() {
+    if (this.levelData.robots.length === 0) {
+      console.log('⚠️ No robots in level data');
+      return;
+    }
+
+    // Spawn the first robot from level data as a test
+    const robotSpawn = this.levelData.robots[0];
+    const tileSize = this.levelData.tileSize;
+    
+    // Convert spawn position from tile coordinates to world coordinates
+    const worldX = robotSpawn.position.x * tileSize + this.levelOffsetX + tileSize / 2;
+    const worldY = robotSpawn.position.y * tileSize + this.levelOffsetY + tileSize / 2;
+    
+    // Create robot with placeholder values (full system in Phase 3.7)
+    // For now, use spider-bot constants for all robots
+    const robot = new Robot(
+      this,
+      robotSpawn.type,
+      worldX,
+      worldY,
+      robotSpawn.patrolPath,
+      this.levelOffsetX,
+      this.levelOffsetY,
+      tileSize,
+      SPIDER_SPEED,
+      SPIDER_SIZE,
+      SPIDER_COLOR
+    );
+    
+    this.robots.push(robot);
+    console.log(`🤖 Test robot spawned: ${robotSpawn.type} at (${worldX.toFixed(0)}, ${worldY.toFixed(0)})`);
+  }
+
+  /**
+   * Handles collision between a robot and a wall
+   * Stops robot velocity to prevent going through walls
+   */
+  private handleRobotWallCollision(robotObj: Phaser.GameObjects.GameObject, wallObj: Phaser.GameObjects.GameObject) {
+    const robot = robotObj as Robot;
+    if (robot.body.touching.left || robot.body.touching.right) {
+      robot.body.setVelocityX(0);
+    }
+    if (robot.body.touching.up || robot.body.touching.down) {
+      robot.body.setVelocityY(0);
+    }
   }
 
   private clampPlayerVelocity(player: Player) {
