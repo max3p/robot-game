@@ -7,6 +7,7 @@ export class Baby extends Phaser.GameObjects.Arc {
   public calmMeter: number = CALM_METER_MAX;
   private calmMeterBarBg?: Phaser.GameObjects.Rectangle;
   private calmMeterBarFill?: Phaser.GameObjects.Rectangle;
+  private hasLoggedDepletion: boolean = false;
 
   constructor(scene: Phaser.Scene) {
     super(scene, 0, 0, BABY_RADIUS, 0, 360, false, BABY_COLOR);
@@ -30,9 +31,13 @@ export class Baby extends Phaser.GameObjects.Arc {
   }
 
   placeOnGround(x: number, y: number) {
+    const previousHolder = this.holder?.playerId || null;
     this.setHolder(null);
     this.setPosition(x, y);
     this.setVisible(true);
+    if (previousHolder) {
+      console.log(`📦 Baby placed on ground at (${x.toFixed(0)}, ${y.toFixed(0)}) by Player ${previousHolder}`);
+    }
   }
 
   update(delta: number) {
@@ -53,7 +58,19 @@ export class Baby extends Phaser.GameObjects.Arc {
     }
 
     // Clamp calm meter between 0 and MAX
+    const previousMeter = this.calmMeter;
     this.calmMeter = Phaser.Math.Clamp(this.calmMeter, 0, CALM_METER_MAX);
+    
+    // Log calm meter depletion (only once when it hits 0)
+    if (this.calmMeter === 0 && previousMeter > 0 && !this.hasLoggedDepletion) {
+      this.hasLoggedDepletion = true;
+      console.log(`😭 Baby calm meter depleted! Baby is crying (Player ${this.holder?.playerId || 'unknown'})`);
+    }
+    
+    // Reset flag if meter goes above 0
+    if (this.calmMeter > 0 && this.hasLoggedDepletion) {
+      this.hasLoggedDepletion = false;
+    }
 
     // Update position to be offset on holder
     if (this.holder) {

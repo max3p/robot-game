@@ -117,12 +117,20 @@ export class SwapSystem {
     
     // Create progress bar
     this.createSwapProgressBar(this.activePlayerSwap);
+    
+    const p1Item = this.getItemType(player1.getHeldItem());
+    const p2Item = this.getItemType(player2.getHeldItem());
+    console.log(`🔄 Player swap triggered: Player ${player1.playerId} (${p1Item}) ↔ Player ${player2.playerId} (${p2Item}) - 2 second timer started`);
   }
 
   private cancelPlayerSwap() {
     if (this.activePlayerSwap) {
       if (this.activePlayerSwap.progressBar) {
         this.activePlayerSwap.progressBar.destroy();
+      }
+      const wasCancelled = this.activePlayerSwap.timer > 0 && this.activePlayerSwap.timer < PLAYER_SWAP_DURATION;
+      if (wasCancelled) {
+        console.log(`❌ Player swap cancelled: Player ${this.activePlayerSwap.player1.playerId} ↔ Player ${this.activePlayerSwap.player2.playerId}`);
       }
       this.activePlayerSwap = null;
     }
@@ -132,6 +140,9 @@ export class SwapSystem {
     // Swap items between players
     const p1Item = swap.player1.getHeldItem();
     const p2Item = swap.player2.getHeldItem();
+    
+    const p1ItemType = this.getItemType(p1Item);
+    const p2ItemType = this.getItemType(p2Item);
     
     // Remove items from players
     swap.player1.setHeldBaby(null);
@@ -152,8 +163,17 @@ export class SwapSystem {
       swap.player1.setHeldWeapon(p2Item);
     }
     
+    console.log(`✅ Player swap completed: Player ${swap.player1.playerId} now has ${p2ItemType}, Player ${swap.player2.playerId} now has ${p1ItemType}`);
+    
     // Clean up
     this.cancelPlayerSwap();
+  }
+  
+  private getItemType(item: Baby | Weapon | null): string {
+    if (!item) return 'nothing';
+    if (item instanceof Baby) return 'Baby';
+    if (item instanceof Weapon) return item.weaponType;
+    return 'unknown';
   }
 
   private createSwapProgressBar(swap: PlayerSwapState) {
@@ -195,6 +215,9 @@ export class SwapSystem {
     const groundItemX = groundItem.x;
     const groundItemY = groundItem.y;
 
+    const playerItemType = this.getItemType(playerCurrentItem);
+    const groundItemType = this.getItemType(groundItem);
+
     // Remove ground item from ground items list (it will be picked up)
     this.removeGroundItem(groundItem);
 
@@ -204,18 +227,22 @@ export class SwapSystem {
         player.setHeldBaby(null);
         playerCurrentItem.placeOnGround(groundItemX, groundItemY);
         this.addGroundItem(playerCurrentItem);
+        console.log(`📦 Player ${player.playerId} dropped ${playerItemType} on ground at (${groundItemX.toFixed(0)}, ${groundItemY.toFixed(0)})`);
       } else if (playerCurrentItem instanceof Weapon) {
         player.setHeldWeapon(null);
         playerCurrentItem.placeOnGround(groundItemX, groundItemY);
         this.addGroundItem(playerCurrentItem);
+        console.log(`📦 Player ${player.playerId} dropped ${playerItemType} on ground at (${groundItemX.toFixed(0)}, ${groundItemY.toFixed(0)})`);
       }
     }
 
     // Player picks up ground item
     if (groundItem instanceof Baby) {
       player.setHeldBaby(groundItem);
+      console.log(`📥 Player ${player.playerId} picked up ${groundItemType} from ground`);
     } else if (groundItem instanceof Weapon) {
       player.setHeldWeapon(groundItem);
+      console.log(`📥 Player ${player.playerId} picked up ${groundItemType} from ground`);
     }
   }
 }

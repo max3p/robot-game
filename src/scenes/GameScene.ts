@@ -21,6 +21,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    console.log(`🎮 Level started: ${this.levelData.name} (${this.levelData.grid.length}x${this.levelData.grid[0].length})`);
+    
     this.renderLevel();
     this.createWallCollisions();
     this.spawnPlayers();
@@ -32,6 +34,8 @@ export class GameScene extends Phaser.Scene {
     
     // Set up collisions between players (they can push each other)
     this.physics.add.collider(this.players, this.players);
+    
+    console.log(`✨ Game scene initialized and ready!`);
   }
 
   update(time: number, delta: number) {
@@ -146,6 +150,8 @@ export class GameScene extends Phaser.Scene {
       const player = new Player(this, baseX + offset.x, baseY + offset.y, i);
       this.players.push(player);
     }
+    
+    console.log(`✅ Players spawned: ${this.players.length} players at position (${baseX.toFixed(0)}, ${baseY.toFixed(0)})`);
   }
 
   private setupStartingLoadout(playerCount: number) {
@@ -155,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     const player1 = this.players.find(p => p.playerId === 1);
     if (player1) {
       player1.setHeldBaby(this.baby);
+      console.log(`📦 Starting loadout: Player 1 received Baby`);
     }
 
     // Remaining players start with weapons in order: Goo, EMP, Water
@@ -168,6 +175,7 @@ export class GameScene extends Phaser.Scene {
         // Create weapon at player position (will be held immediately)
         const weapon = new Weapon(this, weaponType, player.x, player.y);
         player.setHeldWeapon(weapon);
+        console.log(`📦 Starting loadout: Player ${i} received ${weaponType}`);
       }
     }
 
@@ -206,6 +214,7 @@ export class GameScene extends Phaser.Scene {
         const weapon = new Weapon(this, weaponType, spawnX, spawnY);
         weapon.placeOnGround(spawnX, spawnY);
         this.swapSystem.addGroundItem(weapon);
+        console.log(`📦 Starting loadout: ${weaponType} spawned on ground at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)})`);
       });
     }
   }
