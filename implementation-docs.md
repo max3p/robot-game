@@ -876,7 +876,7 @@ Ground items spawn within 3 tiles of start position.
 
 ### 6.5 Tile Rendering
 
-**Tile size:** 48x48 pixels
+**Tile size:** 96x96 pixels
 
 **Tile types:**
 - Wall (1): Black (#000000) square
@@ -906,7 +906,7 @@ Ground items spawn within 3 tiles of start position.
 
 2. **Basic Phaser Configuration**
    - Create gameConfig.ts with Phaser.Game configuration
-   - Set up canvas size: 960x720 pixels
+   - Set up canvas size: 960x960 pixels
    - Configure physics: Arcade physics
    - Enable Light2D pipeline
    - Set background color to black
@@ -917,7 +917,7 @@ Ground items spawn within 3 tiles of start position.
    - Scene should load and display without errors
 
 4. **Level Rendering**
-   - Create constants.ts with TILE_SIZE = 48
+   - Create constants.ts with TILE_SIZE = 96
    - Implement level data structure in levelData.ts
    - Create Level1 data (10x10 grid as specified)
    - Render level grid in GameScene:
@@ -1316,8 +1316,8 @@ Ground items spawn within 3 tiles of start position.
 
 // Display
 export const GAME_WIDTH = 960;
-export const GAME_HEIGHT = 720;
-export const TILE_SIZE = 48;
+export const GAME_HEIGHT = 960;
+export const TILE_SIZE = 96;
 
 // Player
 export const BASE_PLAYER_SPEED = 200;
@@ -1571,7 +1571,7 @@ import { LevelData, RobotType, WeaponType } from '../types';
 export const Level1: LevelData = {
   id: 1,
   name: 'Awakening',
-  tileSize: 48,
+  tileSize: 96,
   grid: [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],

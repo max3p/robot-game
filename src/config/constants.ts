@@ -1,5 +1,15 @@
 // Display constants
 export const GAME_WIDTH = 960;
-export const GAME_HEIGHT = 720;
-export const TILE_SIZE = 48;
+export const GAME_HEIGHT = 960;
+export const TILE_SIZE = 96;
+
+// Player
+export const BASE_PLAYER_SPEED = 200;
+export const PLAYER_RADIUS = 16; // 32px diameter / 2
+export const PLAYER_COLOR_P1 = 0x00FF00; // Green
+
+// Colors
+export const WALL_COLOR = 0x000000;
+export const FLOOR_COLOR = 0x1A1A1A;
+export const EXIT_COLOR = 0x00FF00;
 
