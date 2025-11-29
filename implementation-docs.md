@@ -553,8 +553,8 @@ interface Robot {
     facingDirection: Vector2
     state: RobotState
     health: number                // Only spider-bot uses this
-    patrolPath: Vector2[]         // Waypoints for patrol
-    currentPatrolIndex: number
+    patrolPath: Vector2[]         // Waypoints for patrol (legacy, robots now use random walk AI)
+    currentPatrolIndex: number    // (legacy, not used with random walk AI)
     alertTarget: Vector2 | null
     lightRadius: number
     lightAngle: number
@@ -695,21 +695,41 @@ WRONG_WEAPON_CONFUSION_DURATION = 0.5 seconds
 
 ### 5.5 Robot AI Behavior
 
-#### 5.5.1 Patrol State
+#### 5.5.1 Patrol State (Random Walk AI)
 
-Robots follow a predefined patrol path:
+Robots use a random walk AI to patrol the level. Instead of following predefined paths, they randomly select neighboring floor tiles to move to:
 
 ```
-function updatePatrol(robot):
-    targetWaypoint = robot.patrolPath[robot.currentPatrolIndex]
-    directionToWaypoint = targetWaypoint - robot.position
+function updateRandomWalk(robot):
+    currentTile = worldToTileCoordinates(robot.position)
     
-    if directionToWaypoint.length() < 10:  // reached waypoint
-        robot.currentPatrolIndex = (robot.currentPatrolIndex + 1) % robot.patrolPath.length
-    else:
-        robot.velocity = directionToWaypoint.normalize() * robot.speed
-        robot.facingDirection = directionToWaypoint.normalize()
+    // If no target or reached target, select new random neighbor
+    if not robot.currentTargetTile or reachedTarget:
+        neighbors = [
+            {x: currentTile.x, y: currentTile.y - 1},  // Up
+            {x: currentTile.x, y: currentTile.y + 1},  // Down
+            {x: currentTile.x - 1, y: currentTile.y},  // Left
+            {x: currentTile.x + 1, y: currentTile.y}   // Right
+        ]
+        
+        // Filter to only valid floor tiles (not walls, within bounds)
+        validNeighbors = neighbors.filter(tile => isValidFloorTile(tile))
+        
+        // Randomly select one valid neighbor
+        robot.currentTargetTile = randomSelect(validNeighbors)
+    
+    // Move toward target tile
+    directionToTarget = robot.currentTargetTile - robot.position
+    robot.velocity = directionToTarget.normalize() * robot.speed
+    robot.facingDirection = directionToTarget.normalize()
 ```
+
+**Key features:**
+- Robots randomly select from 4 neighboring tiles (up, down, left, right)
+- Only moves to floor tiles (0), never walls (1)
+- Checks bounds to stay within level
+- After reaching a tile, waits briefly (500ms) before selecting a new target
+- Creates unpredictable, organic movement patterns
 
 #### 5.5.2 Alert State
 
@@ -1020,7 +1040,7 @@ Ground items spawn within 3 tiles of start position.
 
 1. **Base Robot Class**
    - Create Robot.ts with common properties
-   - Implement patrol state with waypoint following
+   - Implement random walk patrol AI (randomly selects neighboring floor tiles)
    - Robot rendered as colored rectangle
    - Robot faces direction of movement
 
@@ -1044,7 +1064,7 @@ Ground items spawn within 3 tiles of start position.
    - Create SpiderBot.ts extending Robot
    - Stats as specified (fast, melee)
    - Pink light cone
-   - Patrol behavior
+   - Random walk patrol behavior (selects random neighboring floor tiles)
    - Alert: chase detected player
    - Attack: damage on contact
 
@@ -1065,7 +1085,8 @@ Ground items spawn within 3 tiles of start position.
 
 7. **Robot Spawning**
    - Read robot spawn data from level data
-   - Create robots at specified positions with patrol paths
+   - Create robots at specified positions (patrol paths in level data are legacy, not used)
+   - Robots use random walk AI starting from spawn position
    - Scale robot count based on player count
 
 8. **Sound Detection**

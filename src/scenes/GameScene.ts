@@ -5,6 +5,7 @@ import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
 import { Robot } from '../entities/Robot';
+import { SpiderBot } from '../entities/SpiderBot';
 import { SwapSystem } from '../systems/SwapSystem';
 import { DetectionSystem } from '../systems/DetectionSystem';
 import { WeaponType, RobotType } from '../types';
@@ -75,7 +76,13 @@ export class GameScene extends Phaser.Scene {
     
     // Update all robots
     this.robots.forEach(robot => {
-      robot.update(delta);
+      // SpiderBot and other specific robot types need player list
+      if (robot instanceof SpiderBot) {
+        robot.update(delta, this.players);
+      } else {
+        // Base Robot class uses standard update
+        robot.update(delta);
+      }
     });
     
     // Update detection system (checks if robots detect players)
@@ -326,21 +333,37 @@ export class GameScene extends Phaser.Scene {
     const worldX = robotSpawn.position.x * tileSize + this.levelOffsetX + tileSize / 2;
     const worldY = robotSpawn.position.y * tileSize + this.levelOffsetY + tileSize / 2;
     
-    // Create robot with placeholder values (full system in Phase 3.7)
-    // For now, use spider-bot constants for all robots
-    const robot = new Robot(
-      this,
-      robotSpawn.type,
-      worldX,
-      worldY,
-      robotSpawn.patrolPath,
-      this.levelOffsetX,
-      this.levelOffsetY,
-      tileSize,
-      SPIDER_SPEED,
-      SPIDER_SIZE,
-      SPIDER_COLOR
-    );
+    // Phase 3.4: Create specific robot types
+    // For now, create SpiderBot for spider-bot type, fallback to base Robot for others
+    let robot: Robot;
+    
+    if (robotSpawn.type === RobotType.SPIDER_BOT) {
+      robot = new SpiderBot(
+        this,
+        worldX,
+        worldY,
+        this.levelOffsetX,
+        this.levelOffsetY,
+        tileSize
+      );
+    } else {
+      // Other robot types - create base Robot for now (will be implemented in later phases)
+      robot = new Robot(
+        this,
+        robotSpawn.type,
+        worldX,
+        worldY,
+        this.levelOffsetX,
+        this.levelOffsetY,
+        tileSize,
+        SPIDER_SPEED,
+        SPIDER_SIZE,
+        SPIDER_COLOR
+      );
+    }
+    
+    // Set level grid for random walk AI
+    robot.setLevelGrid(this.levelData.grid);
     
     this.robots.push(robot);
     console.log(`🤖 Test robot spawned: ${robotSpawn.type} at (${worldX.toFixed(0)}, ${worldY.toFixed(0)})`);

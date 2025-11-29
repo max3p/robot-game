@@ -1,14 +1,12 @@
 import Phaser from 'phaser';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE } from '../config/constants';
+import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION } from '../config/constants';
 
 export class Robot extends Phaser.GameObjects.Rectangle {
   public body!: Phaser.Physics.Arcade.Body;
   public robotType: RobotType;
   public state: RobotState = RobotState.PATROL;
   public facingDirection: Vector2 = { x: 0, y: -1 }; // Default facing up
-  public patrolPath: Vector2[]; // World coordinates
-  public currentPatrolIndex: number = 0;
   public alertTarget: Vector2 | null = null;
   public speed: number;
   public size: number;
@@ -23,7 +21,39 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   public attackCooldown: number = 0;
   public attackTimer: number = 0;
 
-  private waypointReachDistance: number = 10; // pixels
+  // Level grid access for random walk AI
+  protected levelGrid: number[][] = []; // 0 = floor, 1 = wall
+  protected tileSize: number = 0;
+  protected levelOffsetX: number = 0;
+  protected levelOffsetY: number = 0;
+  
+  // Random walk AI state
+  private currentTargetTile: Vector2 | null = null; // Current target tile in world coordinates
+  private tileReachDistance: number = 20; // Distance to consider a tile "reached" in pixels (increased for smoother stopping)
+  
+  // Behavior states for patrol AI
+  private patrolBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';
+  private behaviorTimer: number = 0;
+  private behaviorDuration: number = 0;
+  private lookDirection: Vector2 = { x: 0, y: -1 }; // Direction robot is looking when in LOOKING state
+  
+  // Smooth movement state
+  private currentVelocity: Vector2 = { x: 0, y: 0 }; // Current velocity for smooth acceleration
+  private targetVelocity: Vector2 = { x: 0, y: 0 }; // Target velocity to accelerate toward
+  
+  // Behavior states for patrol AI
+  private patrolBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';
+  private behaviorTimer: number = 0;
+  private behaviorDuration: number = 0;
+  private lookDirection: Vector2 = { x: 0, y: -1 }; // Direction robot is looking when in LOOKING state
+  
+  // Smooth movement state
+  private currentVelocity: Vector2 = { x: 0, y: 0 }; // Current velocity for smooth acceleration
+  private targetVelocity: Vector2 = { x: 0, y: 0 }; // Target velocity to accelerate toward
+  
+  // Debug logging state (throttled to avoid spam)
+  private lastDebugLogTime: number = 0;
+  private debugLogThrottleMs: number = 1000; // Log movement updates at most once per second
   
   // Visual debug components for detection visualization (only created if DEBUG_MODE is enabled)
   private detectionRadiusCircle?: Phaser.GameObjects.Graphics;
@@ -35,7 +65,6 @@ export class Robot extends Phaser.GameObjects.Rectangle {
    * @param robotType Type of robot (SPIDER_BOT, SHOCK_BOT, FLAME_BOT)
    * @param x Initial X position in world coordinates
    * @param y Initial Y position in world coordinates
-   * @param patrolPathTileCoords Patrol path in tile coordinates
    * @param levelOffsetX X offset of level in world coordinates
    * @param levelOffsetY Y offset of level in world coordinates
    * @param tileSize Size of each tile in pixels
@@ -48,7 +77,6 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     robotType: RobotType,
     x: number,
     y: number,
-    patrolPathTileCoords: Vector2[],
     levelOffsetX: number,
     levelOffsetY: number,
     tileSize: number,
@@ -71,16 +99,10 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     this.body.setCollideWorldBounds(false); // We'll handle bounds manually if needed
     this.body.setImmovable(false);
     
-    // Convert patrol path from tile coordinates to world coordinates
-    this.patrolPath = patrolPathTileCoords.map(tileCoord => ({
-      x: tileCoord.x * tileSize + levelOffsetX + tileSize / 2,
-      y: tileCoord.y * tileSize + levelOffsetY + tileSize / 2
-    }));
-    
-    // Set initial position to first waypoint if patrol path exists
-    if (this.patrolPath.length > 0) {
-      this.setPosition(this.patrolPath[0].x, this.patrolPath[0].y);
-    }
+    // Store level information for random walk AI
+    this.tileSize = tileSize;
+    this.levelOffsetX = levelOffsetX;
+    this.levelOffsetY = levelOffsetY;
     
     // Set depth so robots render above floor but below players
     this.setDepth(10);
@@ -127,20 +149,59 @@ export class Robot extends Phaser.GameObjects.Rectangle {
    * @param delta Time delta in milliseconds
    */
   update(delta: number) {
-    // For Phase 3.3 testing: robot stands still
-    // Movement will be re-enabled in later phases
-    this.body.setVelocity(0, 0);
-    
     // Update detection visuals to match robot position and facing direction (only if DEBUG_MODE is enabled)
     if (DEBUG_MODE) {
       this.updateDetectionVisuals();
     }
     
-    // Original update code (commented out for testing):
-    // if (this.state === RobotState.PATROL) {
-    //   this.updatePatrol(delta);
-    // }
-    // Other states (ALERT, ATTACKING, etc.) will be implemented in later phases
+    // Update attack timer
+    if (this.attackTimer > 0) {
+      this.attackTimer -= delta;
+    }
+    
+    // Update behavior timer
+    if (this.behaviorTimer > 0) {
+      this.behaviorTimer -= delta;
+    }
+    
+    // State-based behavior is handled by subclasses
+    // Base class only handles patrol for generic robots
+    if (this.state === RobotState.PATROL) {
+      this.updateRandomWalk(delta);
+      // Apply smooth movement with acceleration/deceleration only during patrol
+      this.applySmoothMovement(delta);
+    }
+    // Note: For ALERT and ATTACKING states, subclasses (like SpiderBot) directly set velocity
+  }
+  
+  /**
+   * Sets the level grid for random walk AI
+   * Must be called after robot creation to enable random walk behavior
+   */
+  setLevelGrid(grid: number[][]) {
+    this.levelGrid = grid;
+    if (DEBUG_MODE) {
+      const currentTile = this.worldToTileCoordinates(this.x, this.y);
+      console.log(`[Robot ${this.robotType}] Level grid set. Starting at tile (${currentTile.x},${currentTile.y})`);
+    }
+  }
+  
+  /**
+   * Method to be overridden by subclasses for alert behavior
+   * @param delta Time delta in milliseconds
+   * @param players Array of players in the scene
+   */
+  updateAlert(delta: number, players: any[]): void {
+    // Base implementation - to be overridden by subclasses
+  }
+  
+  /**
+   * Method to be overridden by subclasses for attack behavior
+   * @param delta Time delta in milliseconds
+   * @param players Array of players in the scene
+   */
+  updateAttacking(delta: number, players: any[]): void {
+    // Base implementation - to be overridden by subclasses
   }
   
   /**
@@ -230,36 +291,296 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   }
 
   /**
-   * Updates patrol behavior: follows waypoints in patrol path
+   * Updates random walk behavior with advanced behaviors (moving, looking, resting)
    * @param delta Time delta in milliseconds
    */
-  private updatePatrol(delta: number) {
-    if (this.patrolPath.length === 0) {
-      // No patrol path, robot stays still
-      this.body.setVelocity(0, 0);
+  private updateRandomWalk(delta: number) {
+    // If no level grid is set, robot stays still
+    if (this.levelGrid.length === 0) {
+      this.targetVelocity = { x: 0, y: 0 };
       return;
     }
-
-    const targetWaypoint = this.patrolPath[this.currentPatrolIndex];
-    const dx = targetWaypoint.x - this.x;
-    const dy = targetWaypoint.y - this.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // Check if we've reached the current waypoint
-    if (distance < this.waypointReachDistance) {
-      // Move to next waypoint (loop back to start)
-      this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolPath.length;
-    } else {
-      // Move toward current waypoint
-      const directionX = dx / distance;
-      const directionY = dy / distance;
-      
-      // Set velocity based on speed (Phaser handles delta internally)
-      this.body.setVelocity(directionX * this.speed, directionY * this.speed);
-      
-      // Update facing direction based on movement
-      this.facingDirection = { x: directionX, y: directionY };
+    
+    // Convert current world position to tile coordinates
+    const currentTile = this.worldToTileCoordinates(this.x, this.y);
+    
+    // Check if behavior timer has expired, select new behavior
+    if (this.behaviorTimer <= 0) {
+      this.selectNewBehavior(currentTile);
     }
+    
+    // Update current behavior
+    switch (this.patrolBehavior) {
+      case 'MOVING':
+        this.updateMovingBehavior(delta, currentTile);
+        break;
+      case 'LOOKING':
+        this.updateLookingBehavior(delta);
+        break;
+      case 'RESTING':
+        this.updateRestingBehavior(delta);
+        break;
+    }
+  }
+  
+  /**
+   * Randomly selects a new behavior (MOVING, LOOKING, or RESTING)
+   */
+  private selectNewBehavior(currentTile: Vector2): void {
+    const behaviors: Array<'MOVING' | 'LOOKING' | 'RESTING'> = ['MOVING', 'LOOKING', 'RESTING'];
+    const weights = [0.6, 0.2, 0.2]; // 60% moving, 20% looking, 20% resting
+    
+    // Weighted random selection
+    const random = Math.random();
+    let cumulativeWeight = 0;
+    let selectedBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';
+    
+    for (let i = 0; i < behaviors.length; i++) {
+      cumulativeWeight += weights[i];
+      if (random <= cumulativeWeight) {
+        selectedBehavior = behaviors[i];
+        break;
+      }
+    }
+    
+    this.patrolBehavior = selectedBehavior;
+    
+    // Set behavior duration (random)
+    switch (selectedBehavior) {
+      case 'MOVING':
+        // Moving: 2-5 seconds
+        this.behaviorDuration = 2000 + Math.random() * 3000;
+        // Select a target tile to move to
+        if (!this.currentTargetTile) {
+          this.selectRandomNeighborTile(currentTile);
+        }
+        break;
+      case 'LOOKING':
+        // Looking: 1-3 seconds
+        this.behaviorDuration = 1000 + Math.random() * 2000;
+        // Pick a random direction to look
+        const lookAngle = Math.random() * Math.PI * 2;
+        this.lookDirection = { x: Math.cos(lookAngle), y: Math.sin(lookAngle) };
+        this.currentTargetTile = null;
+        this.targetVelocity = { x: 0, y: 0 };
+        break;
+      case 'RESTING':
+        // Resting: 1-2.5 seconds
+        this.behaviorDuration = 1000 + Math.random() * 1500;
+        this.currentTargetTile = null;
+        this.targetVelocity = { x: 0, y: 0 };
+        break;
+    }
+    
+    this.behaviorTimer = this.behaviorDuration;
+    
+    if (DEBUG_MODE && this.shouldLogDebug()) {
+      console.log(`[Robot ${this.robotType}] New behavior: ${selectedBehavior} (${(this.behaviorDuration / 1000).toFixed(1)}s)`);
+    }
+  }
+  
+  /**
+   * Updates MOVING behavior: moves toward target tile
+   */
+  private updateMovingBehavior(delta: number, currentTile: Vector2): void {
+    if (!this.currentTargetTile) {
+      // No target, select one
+      this.selectRandomNeighborTile(currentTile);
+      if (!this.currentTargetTile) {
+        // No valid neighbors, switch to resting
+        this.patrolBehavior = 'RESTING';
+        this.behaviorTimer = 1000;
+        this.targetVelocity = { x: 0, y: 0 };
+        return;
+      }
+      
+      if (DEBUG_MODE && this.shouldLogDebug()) {
+        const newTile = this.worldToTileCoordinates(this.currentTargetTile.x, this.currentTargetTile.y);
+        console.log(`[Robot ${this.robotType}] Moving: Tile (${currentTile.x},${currentTile.y}) → (${newTile.x},${newTile.y})`);
+      }
+    }
+    
+    // Check if we've reached the target tile
+    if (this.currentTargetTile) {
+      const dx = this.currentTargetTile.x - this.x;
+      const dy = this.currentTargetTile.y - this.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= this.tileReachDistance) {
+        // Reached target - clear it (will select new one next frame if still in MOVING behavior)
+        this.currentTargetTile = null;
+        
+        if (DEBUG_MODE && this.shouldLogDebug()) {
+          const reachedTile = this.worldToTileCoordinates(this.x, this.y);
+          console.log(`[Robot ${this.robotType}] Reached tile (${reachedTile.x},${reachedTile.y})`);
+        }
+      } else {
+        // Calculate direction and set target velocity for smooth movement
+        const directionX = dx / distance;
+        const directionY = dy / distance;
+        
+        this.targetVelocity = {
+          x: directionX * this.speed,
+          y: directionY * this.speed
+        };
+        
+        // Update facing direction
+        this.facingDirection = { x: directionX, y: directionY };
+      }
+    }
+  }
+  
+  /**
+   * Updates LOOKING behavior: robot turns to look in a direction
+   */
+  private updateLookingBehavior(delta: number): void {
+    // Gradually turn toward look direction
+    const currentAngle = Math.atan2(this.facingDirection.y, this.facingDirection.x);
+    const targetAngle = Math.atan2(this.lookDirection.y, this.lookDirection.x);
+    
+    // Smooth rotation toward target angle
+    let angleDiff = targetAngle - currentAngle;
+    // Normalize angle difference to -PI to PI
+    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+    
+    // Rotate at a reasonable speed (radians per second)
+    const rotationSpeed = 2.0; // radians per second
+    const maxRotation = rotationSpeed * (delta / 1000);
+    
+    if (Math.abs(angleDiff) < maxRotation) {
+      this.facingDirection = this.lookDirection;
+    } else {
+      const rotation = Math.sign(angleDiff) * maxRotation;
+      const newAngle = currentAngle + rotation;
+      this.facingDirection = {
+        x: Math.cos(newAngle),
+        y: Math.sin(newAngle)
+      };
+    }
+    
+    this.targetVelocity = { x: 0, y: 0 };
+  }
+  
+  /**
+   * Updates RESTING behavior: robot stands still
+   */
+  private updateRestingBehavior(delta: number): void {
+    this.targetVelocity = { x: 0, y: 0 };
+  }
+  
+  /**
+   * Applies smooth movement with acceleration and deceleration
+   */
+  private applySmoothMovement(delta: number): void {
+    const deltaSeconds = delta / 1000;
+    
+    // Calculate velocity difference
+    const velDiffX = this.targetVelocity.x - this.currentVelocity.x;
+    const velDiffY = this.targetVelocity.y - this.currentVelocity.y;
+    const velDiffMagnitude = Math.sqrt(velDiffX * velDiffX + velDiffY * velDiffY);
+    
+    if (velDiffMagnitude < 1) {
+      // Very close to target velocity, snap to it
+      this.currentVelocity = { ...this.targetVelocity };
+    } else {
+      // Determine if we're accelerating or decelerating
+      const isAccelerating = 
+        (this.targetVelocity.x !== 0 || this.targetVelocity.y !== 0) &&
+        Math.abs(velDiffMagnitude) > 0;
+      
+      const acceleration = isAccelerating ? ROBOT_ACCELERATION : ROBOT_DECELERATION;
+      const maxChange = acceleration * deltaSeconds;
+      
+      // Normalize velocity difference
+      const normalizedX = velDiffX / velDiffMagnitude;
+      const normalizedY = velDiffY / velDiffMagnitude;
+      
+      // Apply acceleration/deceleration
+      const changeX = Math.min(Math.abs(velDiffX), maxChange) * Math.sign(velDiffX);
+      const changeY = Math.min(Math.abs(velDiffY), maxChange) * Math.sign(velDiffY);
+      
+      this.currentVelocity.x += changeX;
+      this.currentVelocity.y += changeY;
+    }
+    
+    // Apply velocity to physics body
+    this.body.setVelocity(this.currentVelocity.x, this.currentVelocity.y);
+  }
+  
+  /**
+   * Converts world coordinates to tile coordinates
+   */
+  private worldToTileCoordinates(worldX: number, worldY: number): Vector2 {
+    const tileX = Math.floor((worldX - this.levelOffsetX) / this.tileSize);
+    const tileY = Math.floor((worldY - this.levelOffsetY) / this.tileSize);
+    return { x: tileX, y: tileY };
+  }
+  
+  /**
+   * Converts tile coordinates to world coordinates (center of tile)
+   */
+  private tileToWorldCoordinates(tileX: number, tileY: number): Vector2 {
+    const worldX = tileX * this.tileSize + this.levelOffsetX + this.tileSize / 2;
+    const worldY = tileY * this.tileSize + this.levelOffsetY + this.tileSize / 2;
+    return { x: worldX, y: worldY };
+  }
+  
+  /**
+   * Checks if a tile coordinate is a valid floor tile (not a wall and within bounds)
+   */
+  private isValidFloorTile(tileX: number, tileY: number): boolean {
+    // Check bounds
+    if (tileY < 0 || tileY >= this.levelGrid.length || 
+        tileX < 0 || tileX >= this.levelGrid[0].length) {
+      return false;
+    }
+    
+    // Check if it's a floor tile (0 = floor, 1 = wall)
+    return this.levelGrid[tileY][tileX] === 0;
+  }
+  
+  /**
+   * Selects a random neighboring floor tile to move to
+   * @param currentTile Current tile position
+   */
+  private selectRandomNeighborTile(currentTile: Vector2): void {
+    // Define neighbors: up, down, left, right (4 directions)
+    const neighbors: Vector2[] = [
+      { x: currentTile.x, y: currentTile.y - 1 }, // Up
+      { x: currentTile.x, y: currentTile.y + 1 }, // Down
+      { x: currentTile.x - 1, y: currentTile.y }, // Left
+      { x: currentTile.x + 1, y: currentTile.y }  // Right
+    ];
+    
+    // Filter to only valid floor tiles
+    const validNeighbors = neighbors.filter(neighbor => 
+      this.isValidFloorTile(neighbor.x, neighbor.y)
+    );
+    
+    // If we have valid neighbors, randomly select one
+    if (validNeighbors.length > 0) {
+      const randomIndex = Math.floor(Math.random() * validNeighbors.length);
+      const selectedTile = validNeighbors[randomIndex];
+      
+      // Convert to world coordinates and set as target
+      this.currentTargetTile = this.tileToWorldCoordinates(selectedTile.x, selectedTile.y);
+    } else {
+      // No valid neighbors, stay in place
+      this.currentTargetTile = null;
+    }
+  }
+
+  /**
+   * Helper to throttle debug logging to avoid spam
+   */
+  private shouldLogDebug(): boolean {
+    const now = Date.now();
+    if (now - this.lastDebugLogTime > this.debugLogThrottleMs) {
+      this.lastDebugLogTime = now;
+      return true;
+    }
+    return false;
   }
 
   /**
