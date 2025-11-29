@@ -18,7 +18,20 @@ export class Player extends Phaser.GameObjects.Arc {
     right: Phaser.Input.Keyboard.Key;
   };
 
+  /**
+   * Creates a new Player instance
+   * @param scene The Phaser scene this player belongs to
+   * @param x Initial X position in world coordinates
+   * @param y Initial Y position in world coordinates
+   * @param playerId Player ID (1-4)
+   */
   constructor(scene: Phaser.Scene, x: number, y: number, playerId: number) {
+    // Validate player ID
+    if (playerId < 1 || playerId > 4) {
+      console.warn(`Invalid player ID: ${playerId}. Must be between 1 and 4. Defaulting to 1.`);
+      playerId = 1;
+    }
+    
     const playerColor = PLAYER_COLORS[playerId - 1];
     super(scene, x, y, PLAYER_RADIUS, 0, 360, false, playerColor);
     
@@ -96,6 +109,10 @@ export class Player extends Phaser.GameObjects.Arc {
     this.pushingPlayers.clear();
   }
 
+  /**
+   * Sets the baby held by this player. Automatically clears weapon if holding one.
+   * @param baby The baby to hold, or null to drop current baby
+   */
   setHeldBaby(baby: Baby | null) {
     // Clear weapon if holding one
     if (baby && this.heldWeapon) {
@@ -107,6 +124,10 @@ export class Player extends Phaser.GameObjects.Arc {
     }
   }
 
+  /**
+   * Sets the weapon held by this player. Automatically clears baby if holding one.
+   * @param weapon The weapon to hold, or null to drop current weapon
+   */
   setHeldWeapon(weapon: Weapon | null) {
     // Clear baby if holding one
     if (weapon && this.heldBaby) {
@@ -118,7 +139,10 @@ export class Player extends Phaser.GameObjects.Arc {
     }
   }
 
-  // Get the currently held item (baby or weapon)
+  /**
+   * Gets the currently held item (baby or weapon)
+   * @returns The held item, or null if no item is held
+   */
   getHeldItem(): Baby | Weapon | null {
     return this.heldBaby || this.heldWeapon || null;
   }

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -27,13 +27,13 @@ export class GameScene extends Phaser.Scene {
     this.createWallCollisions();
     this.spawnPlayers();
     this.initializeSwapSystem();
-    this.setupStartingLoadout(4); // Currently hardcoded to 4 players
+    this.setupStartingLoadout(this.players.length);
     
     // Set up collisions between players and walls
-    this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision as any);
+    this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
     
     // Set up collisions between players (they can push each other)
-    this.physics.add.collider(this.players, this.players, this.handlePlayerPlayerCollision as any);
+    this.physics.add.collider(this.players, this.players, this.handlePlayerPlayerCollision.bind(this));
     
     console.log(`✨ Game scene initialized and ready!`);
   }
@@ -131,6 +131,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Spawns all players at the level start position with slight offsets
+   */
   private spawnPlayers() {
     const startPos = this.levelData.startPosition;
     const tileSize = this.levelData.tileSize;
@@ -148,8 +151,9 @@ export class GameScene extends Phaser.Scene {
       { x: offsetDistance, y: offsetDistance }    // Player 4: bottom-right
     ];
     
-    // Hardcode to 4 players for Phase 2.1
-    for (let i = 1; i <= 4; i++) {
+    // Spawn players based on configuration (currently hardcoded to 4 for Phase 2)
+    const playerCount = 4;
+    for (let i = 1; i <= playerCount; i++) {
       const offset = offsets[i - 1];
       const player = new Player(this, baseX + offset.x, baseY + offset.y, i);
       this.players.push(player);
@@ -158,6 +162,10 @@ export class GameScene extends Phaser.Scene {
     console.log(`✅ Players spawned: ${this.players.length} players at position (${baseX.toFixed(0)}, ${baseY.toFixed(0)})`);
   }
 
+  /**
+   * Sets up the starting loadout for all players based on player count
+   * @param playerCount Number of players (1-4)
+   */
   private setupStartingLoadout(playerCount: number) {
     // Phase 2.7: Starting Loadout
     // Player 1 always starts with baby
@@ -174,7 +182,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 2; i <= Math.min(playerCount, 4); i++) {
       const player = this.players.find(p => p.playerId === i);
       if (player) {
-        const weaponType = weaponTypes[i - 2]; // i-2 because Player 1 is index 0 in weapon array
+        const weaponType = weaponTypes[i - 2]; // i-2 because Player 1 (index 0) holds baby, not a weapon
         
         // Create weapon at player position (will be held immediately)
         const weapon = new Weapon(this, weaponType, player.x, player.y);
@@ -190,24 +198,10 @@ export class GameScene extends Phaser.Scene {
       const baseX = startPos.x * tileSize + this.levelOffsetX + tileSize / 2;
       const baseY = startPos.y * tileSize + this.levelOffsetY + tileSize / 2;
       
-      // Determine which weapons need to spawn on ground
-      const weaponsToSpawn: WeaponType[] = [];
+      // Get weapons to spawn on ground based on player count
+      const weaponsToSpawn = this.getWeaponsForGroundSpawn(playerCount);
       
-      if (playerCount === 3) {
-        // Player 1 (Baby), Player 2 (Goo), Player 3 (EMP)
-        // Need Water on ground
-        weaponsToSpawn.push(WeaponType.WATER_GUN);
-      } else if (playerCount === 2) {
-        // Player 1 (Baby), Player 2 (Goo)
-        // Need EMP and Water on ground
-        weaponsToSpawn.push(WeaponType.EMP_GUN, WeaponType.WATER_GUN);
-      } else if (playerCount === 1) {
-        // Player 1 (Baby)
-        // Need all 3 guns on ground
-        weaponsToSpawn.push(WeaponType.GOO_GUN, WeaponType.EMP_GUN, WeaponType.WATER_GUN);
-      }
-
-      // Spawn weapons on ground within 3 tiles of start position
+      // Spawn weapons on ground in a circular pattern around start position
       const spawnOffsets = this.generateGroundItemSpawnOffsets(weaponsToSpawn.length);
       
       weaponsToSpawn.forEach((weaponType, index) => {
@@ -223,12 +217,42 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Determines which weapons should spawn on ground based on player count
+   * @param playerCount Number of active players
+   * @returns Array of weapon types to spawn on ground
+   */
+  private getWeaponsForGroundSpawn(playerCount: number): WeaponType[] {
+    const weaponsToSpawn: WeaponType[] = [];
+    
+    if (playerCount === 3) {
+      // Player 1 (Baby), Player 2 (Goo), Player 3 (EMP)
+      // Need Water on ground
+      weaponsToSpawn.push(WeaponType.WATER_GUN);
+    } else if (playerCount === 2) {
+      // Player 1 (Baby), Player 2 (Goo)
+      // Need EMP and Water on ground
+      weaponsToSpawn.push(WeaponType.EMP_GUN, WeaponType.WATER_GUN);
+    } else if (playerCount === 1) {
+      // Player 1 (Baby)
+      // Need all 3 guns on ground
+      weaponsToSpawn.push(WeaponType.GOO_GUN, WeaponType.EMP_GUN, WeaponType.WATER_GUN);
+    }
+    
+    return weaponsToSpawn;
+  }
+
+  /**
+   * Generates spawn offsets for ground items in a circular pattern around start position
+   * @param count Number of items to spawn
+   * @returns Array of offset positions
+   */
   private generateGroundItemSpawnOffsets(count: number): Array<{ x: number; y: number }> {
-    // Generate spawn positions within 3 tiles of start
-    const maxOffset = 3 * TILE_SIZE;
     const offsets: Array<{ x: number; y: number }> = [];
     
-    // Generate offsets in a circle/spiral pattern around start
+    // Generate offsets in a circular pattern around start position
+    if (count === 0) return offsets;
+    
     const angleStep = (2 * Math.PI) / count;
     const radius = TILE_SIZE * 1.5; // Spawn 1.5 tiles away from start
     
@@ -243,19 +267,30 @@ export class GameScene extends Phaser.Scene {
     return offsets;
   }
 
+  /**
+   * Initializes the swap system for handling item exchanges
+   */
   private initializeSwapSystem() {
-    // Initialize swap system for ground item pickup
     this.swapSystem = new SwapSystem(this);
     this.swapSystem.setPlayers(this.players);
-    
-    // Currently no ground items, but this will be used when items are dropped or spawned
-    // The swap system will track items added via addGroundItem()
   }
 
-  private handlePlayerWallCollision(playerObj: any, wallObj: any) {
+  private clampPlayerVelocity(player: Player) {
+    // Clamp velocity to prevent excessive push speeds
+    if (Math.abs(player.body.velocity.x) > MAX_PUSH_VELOCITY || Math.abs(player.body.velocity.y) > MAX_PUSH_VELOCITY) {
+      player.body.setVelocity(
+        Phaser.Math.Clamp(player.body.velocity.x, -MAX_PUSH_VELOCITY, MAX_PUSH_VELOCITY),
+        Phaser.Math.Clamp(player.body.velocity.y, -MAX_PUSH_VELOCITY, MAX_PUSH_VELOCITY)
+      );
+    }
+  }
+
+  /**
+   * Handles collision between a player and a wall
+   * Stops player velocity to prevent being pushed through walls
+   */
+  private handlePlayerWallCollision(playerObj: Phaser.GameObjects.GameObject, wallObj: Phaser.GameObjects.GameObject) {
     const player = playerObj as Player;
-    // Stop player velocity when hitting wall - Phaser handles the position correction
-    // This prevents players from being pushed through walls
     if (player.body.touching.left || player.body.touching.right) {
       player.body.setVelocityX(0);
     }
@@ -264,7 +299,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private handlePlayerPlayerCollision(player1Obj: any, player2Obj: any) {
+  /**
+   * Handles collision between two players
+   * Tracks pushing relationships for speed reduction and clamps excessive velocities
+   */
+  private handlePlayerPlayerCollision(player1Obj: Phaser.GameObjects.GameObject, player2Obj: Phaser.GameObjects.GameObject) {
     const player1 = player1Obj as Player;
     const player2 = player2Obj as Player;
     
@@ -273,31 +312,23 @@ export class GameScene extends Phaser.Scene {
     const p2Vel = Math.sqrt(player2.body.velocity.x ** 2 + player2.body.velocity.y ** 2);
     
     // Track pushing relationships for speed reduction
-    if (p1Vel > p2Vel + 10) {
+    if (p1Vel > p2Vel + PUSH_VELOCITY_THRESHOLD) {
       // Player 1 is pushing player 2
       player1.pushingPlayers.add(player2);
-    } else if (p2Vel > p1Vel + 10) {
+    } else if (p2Vel > p1Vel + PUSH_VELOCITY_THRESHOLD) {
       // Player 2 is pushing player 1
       player2.pushingPlayers.add(player1);
     }
     
-    // Ensure players don't push each other through walls by checking bounds
-    // The bounds check in update() will handle this, but we also stop excessive velocity
-    const maxPushVelocity = 150; // Max velocity from being pushed
-    if (Math.abs(player1.body.velocity.x) > maxPushVelocity || Math.abs(player1.body.velocity.y) > maxPushVelocity) {
-      player1.body.setVelocity(
-        Phaser.Math.Clamp(player1.body.velocity.x, -maxPushVelocity, maxPushVelocity),
-        Phaser.Math.Clamp(player1.body.velocity.y, -maxPushVelocity, maxPushVelocity)
-      );
-    }
-    if (Math.abs(player2.body.velocity.x) > maxPushVelocity || Math.abs(player2.body.velocity.y) > maxPushVelocity) {
-      player2.body.setVelocity(
-        Phaser.Math.Clamp(player2.body.velocity.x, -maxPushVelocity, maxPushVelocity),
-        Phaser.Math.Clamp(player2.body.velocity.y, -maxPushVelocity, maxPushVelocity)
-      );
-    }
+    // Clamp velocity to prevent excessive push speeds
+    this.clampPlayerVelocity(player1);
+    this.clampPlayerVelocity(player2);
   }
 
+  /**
+   * Constrains a player's position and velocity to stay within level bounds
+   * @param player The player to constrain
+   */
   private constrainPlayerToBounds(player: Player) {
     const grid = this.levelData.grid;
     const tileSize = this.levelData.tileSize;
@@ -305,11 +336,10 @@ export class GameScene extends Phaser.Scene {
     const levelHeight = grid.length * tileSize;
     
     // Calculate level bounds in world coordinates (accounting for player radius)
-    const playerRadius = 16;
-    const minX = this.levelOffsetX + playerRadius;
-    const maxX = this.levelOffsetX + levelWidth - playerRadius;
-    const minY = this.levelOffsetY + playerRadius;
-    const maxY = this.levelOffsetY + levelHeight - playerRadius;
+    const minX = this.levelOffsetX + PLAYER_RADIUS;
+    const maxX = this.levelOffsetX + levelWidth - PLAYER_RADIUS;
+    const minY = this.levelOffsetY + PLAYER_RADIUS;
+    const maxY = this.levelOffsetY + levelHeight - PLAYER_RADIUS;
     
     // Constrain player position and velocity to prevent going out of bounds
     let needsCorrection = false;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GROUND_ITEM_PICKUP_RADIUS, PLAYER_SWAP_DURATION, PLAYER_OVERLAP_RADIUS, STATIONARY_VELOCITY_THRESHOLD, DEBUG_MODE } from '../config/constants';
+import { GROUND_ITEM_PICKUP_RADIUS, PLAYER_SWAP_DURATION, PLAYER_OVERLAP_RADIUS, STATIONARY_VELOCITY_THRESHOLD, DEBUG_MODE, SWAP_PROGRESS_BAR_WIDTH, SWAP_PROGRESS_BAR_HEIGHT, SWAP_PROGRESS_BAR_OFFSET_Y } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -21,6 +21,10 @@ export class SwapSystem {
     this.scene = scene;
   }
 
+  /**
+   * Sets the players that the swap system will manage
+   * @param players Array of player instances
+   */
   setPlayers(players: Player[]) {
     this.players = players;
     if (DEBUG_MODE) {
@@ -29,10 +33,18 @@ export class SwapSystem {
     }
   }
 
+  /**
+   * Adds an item to the ground items tracking
+   * @param item The item to add
+   */
   addGroundItem(item: Baby | Weapon) {
     this.groundItems.push(item);
   }
 
+  /**
+   * Removes an item from the ground items tracking
+   * @param item The item to remove
+   */
   removeGroundItem(item: Baby | Weapon) {
     const index = this.groundItems.indexOf(item);
     if (index > -1) {
@@ -40,6 +52,10 @@ export class SwapSystem {
     }
   }
 
+  /**
+   * Updates the swap system, checking for ground item pickups and player-to-player swaps
+   * @param delta Time elapsed since last frame in milliseconds
+   */
   update(delta: number) {
     // Check each player against ground items
     this.players.forEach(player => {
@@ -66,6 +82,12 @@ export class SwapSystem {
         // Update timer
         swap.timer += delta;
         
+        // Check if swap duration reached (before updating progress bar to avoid drawing completed bar)
+        if (swap.timer >= PLAYER_SWAP_DURATION) {
+          this.completePlayerSwap(swap);
+          return; // Exit early to avoid updating progress bar after completion
+        }
+        
         // Update progress indicator
         this.updateSwapProgressBar(swap);
         
@@ -73,11 +95,6 @@ export class SwapSystem {
           // Log every 100ms
           const progress = (swap.timer / PLAYER_SWAP_DURATION * 100).toFixed(0);
           console.log(`[DEBUG] Swap progress: ${progress}% (${swap.timer.toFixed(0)}ms / ${PLAYER_SWAP_DURATION}ms)`);
-        }
-        
-        // Check if swap duration reached
-        if (swap.timer >= PLAYER_SWAP_DURATION) {
-          this.completePlayerSwap(swap);
         }
       } else {
         // Players moved or separated - cancel swap
@@ -164,13 +181,6 @@ export class SwapSystem {
 
   private cancelPlayerSwap() {
     if (this.activePlayerSwap) {
-      // Clean up progress bar
-      if (this.activePlayerSwap.progressBar) {
-        this.activePlayerSwap.progressBar.clear();
-        this.activePlayerSwap.progressBar.destroy();
-        this.activePlayerSwap.progressBar = undefined;
-      }
-      
       const wasCancelled = this.activePlayerSwap.timer > 0 && this.activePlayerSwap.timer < PLAYER_SWAP_DURATION;
       if (wasCancelled) {
         console.log(`❌ Player swap cancelled: Player ${this.activePlayerSwap.player1.playerId} ↔ Player ${this.activePlayerSwap.player2.playerId}`);
@@ -178,6 +188,10 @@ export class SwapSystem {
           console.log(`[DEBUG] Swap cancelled at ${this.activePlayerSwap.timer.toFixed(0)}ms`);
         }
       }
+      
+      // Clean up progress bar
+      this.cleanupProgressBar(this.activePlayerSwap);
+      
       this.activePlayerSwap = null;
     }
   }
@@ -211,15 +225,23 @@ export class SwapSystem {
     
     console.log(`✅ Player swap completed: Player ${swap.player1.playerId} now has ${p2ItemType}, Player ${swap.player2.playerId} now has ${p1ItemType}`);
     
-    // Clean up progress bar explicitly
-    if (swap.progressBar) {
-      swap.progressBar.clear();
-      swap.progressBar.destroy();
-      swap.progressBar = undefined;
-    }
+    // Clean up progress bar - ensure it's fully removed from display
+    this.cleanupProgressBar(swap);
     
     // Reset swap state
     this.activePlayerSwap = null;
+  }
+  
+  private cleanupProgressBar(swap: PlayerSwapState) {
+    if (swap.progressBar) {
+      // Clear any rendered graphics
+      swap.progressBar.clear();
+      // Make invisible before destroying
+      swap.progressBar.setVisible(false);
+      // Destroy the graphics object
+      swap.progressBar.destroy();
+      swap.progressBar = undefined;
+    }
   }
   
   private getItemType(item: Baby | Weapon | null): string {
@@ -230,11 +252,6 @@ export class SwapSystem {
   }
 
   private createSwapProgressBar(swap: PlayerSwapState) {
-    const barWidth = 30;
-    const barHeight = 4;
-    const midpointX = (swap.player1.x + swap.player2.x) / 2;
-    const midpointY = (swap.player1.y + swap.player2.y) / 2 - 30;
-    
     swap.progressBar = this.scene.add.graphics();
     swap.progressBar.setDepth(2000);
   }
@@ -242,18 +259,16 @@ export class SwapSystem {
   private updateSwapProgressBar(swap: PlayerSwapState) {
     if (!swap.progressBar) return;
     
-    const barWidth = 30;
-    const barHeight = 4;
     const midpointX = (swap.player1.x + swap.player2.x) / 2;
-    const midpointY = (swap.player1.y + swap.player2.y) / 2 - 30;
+    const midpointY = (swap.player1.y + swap.player2.y) / 2 + SWAP_PROGRESS_BAR_OFFSET_Y;
     const progress = swap.timer / PLAYER_SWAP_DURATION;
-    const fillWidth = barWidth * progress;
+    const fillWidth = SWAP_PROGRESS_BAR_WIDTH * progress;
     
     swap.progressBar.clear();
     swap.progressBar.fillStyle(0x888888);
-    swap.progressBar.fillRect(midpointX - barWidth / 2, midpointY - barHeight / 2, barWidth, barHeight);
+    swap.progressBar.fillRect(midpointX - SWAP_PROGRESS_BAR_WIDTH / 2, midpointY - SWAP_PROGRESS_BAR_HEIGHT / 2, SWAP_PROGRESS_BAR_WIDTH, SWAP_PROGRESS_BAR_HEIGHT);
     swap.progressBar.fillStyle(0x00FF00);
-    swap.progressBar.fillRect(midpointX - barWidth / 2, midpointY - barHeight / 2, fillWidth, barHeight);
+    swap.progressBar.fillRect(midpointX - SWAP_PROGRESS_BAR_WIDTH / 2, midpointY - SWAP_PROGRESS_BAR_HEIGHT / 2, fillWidth, SWAP_PROGRESS_BAR_HEIGHT);
   }
 
   private isPlayerNearItem(player: Player, item: Baby | Weapon): boolean {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BABY_RADIUS, CALM_METER_MAX, CALM_METER_DRAIN_RATE, CALM_METER_FILL_RATE, BABY_COLOR, PLAYER_RADIUS } from '../config/constants';
+import { BABY_RADIUS, CALM_METER_MAX, CALM_METER_DRAIN_RATE, CALM_METER_FILL_RATE, BABY_COLOR, PLAYER_RADIUS, CALM_METER_BAR_WIDTH, CALM_METER_BAR_HEIGHT, CALM_METER_BAR_OFFSET_Y, BABY_OFFSET_Y } from '../config/constants';
 import { Player } from './Player';
 
 export class Baby extends Phaser.GameObjects.Arc {
@@ -16,20 +16,29 @@ export class Baby extends Phaser.GameObjects.Arc {
     this.setDepth(100); // Render above players
   }
 
+  /**
+   * Sets the player holding this baby. Creates/destroys calm meter bar accordingly.
+   * @param holder The player holding the baby, or null if dropped
+   */
   setHolder(holder: Player | null) {
+    // Always destroy existing calm meter bar first to prevent duplicates
+    this.destroyCalmMeterBar();
+    
     this.holder = holder;
     // Baby is visible when held OR when on ground
     this.setVisible(true);
     
     if (holder) {
-      // Create calm meter bar when baby is held
+      // Create calm meter bar when baby is held by new holder
       this.createCalmMeterBar();
-    } else {
-      // Remove calm meter bar when baby is dropped
-      this.destroyCalmMeterBar();
     }
   }
 
+  /**
+   * Places the baby on the ground at the specified position
+   * @param x World X coordinate
+   * @param y World Y coordinate
+   */
   placeOnGround(x: number, y: number) {
     const previousHolder = this.holder?.playerId || null;
     this.setHolder(null);
@@ -74,7 +83,7 @@ export class Baby extends Phaser.GameObjects.Arc {
 
     // Update position to be offset on holder
     if (this.holder) {
-      const offsetY = -PLAYER_RADIUS - 5; // Slightly above player
+      const offsetY = -PLAYER_RADIUS + BABY_OFFSET_Y; // Slightly above player
       this.setPosition(this.holder.x, this.holder.y + offsetY);
     }
 
@@ -85,16 +94,14 @@ export class Baby extends Phaser.GameObjects.Arc {
   private createCalmMeterBar() {
     if (!this.holder) return;
 
-    const barWidth = 40;
-    const barHeight = 6;
-    const barY = this.holder.y - PLAYER_RADIUS - 20; // Above the player
+    const barY = this.holder.y - PLAYER_RADIUS + CALM_METER_BAR_OFFSET_Y; // Above the player
 
     // Background bar (gray)
     this.calmMeterBarBg = this.scene.add.rectangle(
       this.holder.x,
       barY,
-      barWidth,
-      barHeight,
+      CALM_METER_BAR_WIDTH,
+      CALM_METER_BAR_HEIGHT,
       0x333333
     ).setDepth(1000);
 
@@ -102,8 +109,8 @@ export class Baby extends Phaser.GameObjects.Arc {
     this.calmMeterBarFill = this.scene.add.rectangle(
       this.holder.x,
       barY,
-      barWidth,
-      barHeight,
+      CALM_METER_BAR_WIDTH,
+      CALM_METER_BAR_HEIGHT,
       0x00FF00
     ).setDepth(1001);
   }
@@ -111,15 +118,13 @@ export class Baby extends Phaser.GameObjects.Arc {
   private updateCalmMeterBar() {
     if (!this.calmMeterBarFill || !this.holder || !this.calmMeterBarBg) return;
 
-    const barWidth = 40;
-    const barHeight = 6;
-    const barY = this.holder.y - PLAYER_RADIUS - 20;
+    const barY = this.holder.y - PLAYER_RADIUS + CALM_METER_BAR_OFFSET_Y;
 
     // Update background bar position
     this.calmMeterBarBg.setPosition(this.holder.x, barY);
 
     const meterPercent = this.calmMeter / CALM_METER_MAX;
-    const fillWidth = barWidth * meterPercent;
+    const fillWidth = CALM_METER_BAR_WIDTH * meterPercent;
 
     // Color: green when high, yellow in middle, red when low
     let barColor = 0x00FF00; // Green
@@ -130,8 +135,8 @@ export class Baby extends Phaser.GameObjects.Arc {
     }
 
     // Update fill bar position, width, and color
-    this.calmMeterBarFill.setPosition(this.holder.x - barWidth / 2 + fillWidth / 2, barY);
-    this.calmMeterBarFill.setSize(fillWidth, barHeight);
+    this.calmMeterBarFill.setPosition(this.holder.x - CALM_METER_BAR_WIDTH / 2 + fillWidth / 2, barY);
+    this.calmMeterBarFill.setSize(fillWidth, CALM_METER_BAR_HEIGHT);
     this.calmMeterBarFill.setFillStyle(barColor);
   }
 
