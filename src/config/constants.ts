@@ -20,4 +20,12 @@ export const WALL_COLOR = 0x000000;
 export const FLOOR_COLOR = 0x1A1A1A;
 export const EXIT_COLOR = 0x00FF00;
 export const BABY_COLOR = 0xFFFFFF;
+export const GOO_GUN_COLOR = 0xFF69B4; // Pink
+export const EMP_GUN_COLOR = 0x4169E1; // Blue
+export const WATER_GUN_COLOR = 0x00FFFF; // Cyan
+
+// Swapping
+export const GROUND_ITEM_PICKUP_RADIUS = 20;
+export const PLAYER_SWAP_DURATION = 2000; // 2 seconds in milliseconds
+export const PLAYER_OVERLAP_RADIUS = 30;
 

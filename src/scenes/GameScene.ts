@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
+import { Weapon } from '../entities/Weapon';
+import { SwapSystem } from '../systems/SwapSystem';
+import { WeaponType } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private levelData = Level1;
@@ -11,6 +14,7 @@ export class GameScene extends Phaser.Scene {
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private players: Player[] = [];
   private baby!: Baby;
+  private swapSystem!: SwapSystem;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -20,7 +24,8 @@ export class GameScene extends Phaser.Scene {
     this.renderLevel();
     this.createWallCollisions();
     this.spawnPlayers();
-    this.createBaby();
+    this.initializeSwapSystem();
+    this.setupStartingLoadout(4); // Currently hardcoded to 4 players
     
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls);
@@ -40,6 +45,16 @@ export class GameScene extends Phaser.Scene {
     if (this.baby) {
       this.baby.update(delta);
     }
+    
+    // Update swap system (handles ground item pickup and player-to-player swaps)
+    this.swapSystem.update(delta);
+    
+    // Update all weapons (both held and on ground)
+    this.children.list.forEach(child => {
+      if (child instanceof Weapon) {
+        child.update();
+      }
+    });
   }
 
   private renderLevel() {
@@ -133,13 +148,95 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private createBaby() {
-    // Create baby and give it to Player 1 (Phase 2.3: Baby Implementation)
+  private setupStartingLoadout(playerCount: number) {
+    // Phase 2.7: Starting Loadout
+    // Player 1 always starts with baby
     this.baby = new Baby(this);
     const player1 = this.players.find(p => p.playerId === 1);
     if (player1) {
       player1.setHeldBaby(this.baby);
     }
+
+    // Remaining players start with weapons in order: Goo, EMP, Water
+    const weaponTypes = [WeaponType.GOO_GUN, WeaponType.EMP_GUN, WeaponType.WATER_GUN];
+    
+    for (let i = 2; i <= Math.min(playerCount, 4); i++) {
+      const player = this.players.find(p => p.playerId === i);
+      if (player) {
+        const weaponType = weaponTypes[i - 2]; // i-2 because Player 1 is index 0 in weapon array
+        
+        // Create weapon at player position (will be held immediately)
+        const weapon = new Weapon(this, weaponType, player.x, player.y);
+        player.setHeldWeapon(weapon);
+      }
+    }
+
+    // For fewer players: extra weapons spawn on ground near start
+    if (playerCount < 4) {
+      const startPos = this.levelData.startPosition;
+      const tileSize = this.levelData.tileSize;
+      const baseX = startPos.x * tileSize + this.levelOffsetX + tileSize / 2;
+      const baseY = startPos.y * tileSize + this.levelOffsetY + tileSize / 2;
+      
+      // Determine which weapons need to spawn on ground
+      const weaponsToSpawn: WeaponType[] = [];
+      
+      if (playerCount === 3) {
+        // Player 1 (Baby), Player 2 (Goo), Player 3 (EMP)
+        // Need Water on ground
+        weaponsToSpawn.push(WeaponType.WATER_GUN);
+      } else if (playerCount === 2) {
+        // Player 1 (Baby), Player 2 (Goo)
+        // Need EMP and Water on ground
+        weaponsToSpawn.push(WeaponType.EMP_GUN, WeaponType.WATER_GUN);
+      } else if (playerCount === 1) {
+        // Player 1 (Baby)
+        // Need all 3 guns on ground
+        weaponsToSpawn.push(WeaponType.GOO_GUN, WeaponType.EMP_GUN, WeaponType.WATER_GUN);
+      }
+
+      // Spawn weapons on ground within 3 tiles of start position
+      const spawnOffsets = this.generateGroundItemSpawnOffsets(weaponsToSpawn.length);
+      
+      weaponsToSpawn.forEach((weaponType, index) => {
+        const offset = spawnOffsets[index];
+        const spawnX = baseX + offset.x;
+        const spawnY = baseY + offset.y;
+        
+        const weapon = new Weapon(this, weaponType, spawnX, spawnY);
+        weapon.placeOnGround(spawnX, spawnY);
+        this.swapSystem.addGroundItem(weapon);
+      });
+    }
+  }
+
+  private generateGroundItemSpawnOffsets(count: number): Array<{ x: number; y: number }> {
+    // Generate spawn positions within 3 tiles of start
+    const maxOffset = 3 * TILE_SIZE;
+    const offsets: Array<{ x: number; y: number }> = [];
+    
+    // Generate offsets in a circle/spiral pattern around start
+    const angleStep = (2 * Math.PI) / count;
+    const radius = TILE_SIZE * 1.5; // Spawn 1.5 tiles away from start
+    
+    for (let i = 0; i < count; i++) {
+      const angle = i * angleStep;
+      offsets.push({
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius
+      });
+    }
+    
+    return offsets;
+  }
+
+  private initializeSwapSystem() {
+    // Initialize swap system for ground item pickup
+    this.swapSystem = new SwapSystem(this);
+    this.swapSystem.setPlayers(this.players);
+    
+    // Currently no ground items, but this will be used when items are dropped or spawned
+    // The swap system will track items added via addGroundItem()
   }
 
   private constrainPlayerToBounds(player: Player) {

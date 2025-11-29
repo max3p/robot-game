@@ -17,7 +17,8 @@ export class Baby extends Phaser.GameObjects.Arc {
 
   setHolder(holder: Player | null) {
     this.holder = holder;
-    this.setVisible(holder !== null);
+    // Baby is visible when held OR when on ground
+    this.setVisible(true);
     
     if (holder) {
       // Create calm meter bar when baby is held
@@ -26,6 +27,12 @@ export class Baby extends Phaser.GameObjects.Arc {
       // Remove calm meter bar when baby is dropped
       this.destroyCalmMeterBar();
     }
+  }
+
+  placeOnGround(x: number, y: number) {
+    this.setHolder(null);
+    this.setPosition(x, y);
+    this.setVisible(true);
   }
 
   update(delta: number) {

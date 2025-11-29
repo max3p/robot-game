@@ -2,11 +2,14 @@ import Phaser from 'phaser';
 import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS } from '../config/constants';
 import { PLAYER_CONTROLS } from '../config/controls';
 import { Baby } from './Baby';
+import { Weapon } from './Weapon';
 
 export class Player extends Phaser.GameObjects.Arc {
   public body!: Phaser.Physics.Arcade.Body;
   public playerId: number;
   public heldBaby: Baby | null = null;
+  public heldWeapon: Weapon | null = null;
+  public facingDirection: { x: number; y: number } = { x: 0, y: -1 }; // Default facing up
   private movementKeys!: {
     up: Phaser.Input.Keyboard.Key;
     down: Phaser.Input.Keyboard.Key;
@@ -67,6 +70,9 @@ export class Player extends Phaser.GameObjects.Arc {
       const speed = this.heldBaby ? BABY_HOLDER_SPEED : BASE_PLAYER_SPEED;
       velocityX = (moveX / length) * speed;
       velocityY = (moveY / length) * speed;
+      
+      // Update facing direction based on movement
+      this.facingDirection = { x: moveX / length, y: moveY / length };
     }
     
     // Set velocity
@@ -74,10 +80,30 @@ export class Player extends Phaser.GameObjects.Arc {
   }
 
   setHeldBaby(baby: Baby | null) {
+    // Clear weapon if holding one
+    if (baby && this.heldWeapon) {
+      this.setHeldWeapon(null);
+    }
     this.heldBaby = baby;
     if (baby) {
       baby.setHolder(this);
     }
+  }
+
+  setHeldWeapon(weapon: Weapon | null) {
+    // Clear baby if holding one
+    if (weapon && this.heldBaby) {
+      this.setHeldBaby(null);
+    }
+    this.heldWeapon = weapon;
+    if (weapon) {
+      weapon.setHolder(this);
+    }
+  }
+
+  // Get the currently held item (baby or weapon)
+  getHeldItem(): Baby | Weapon | null {
+    return this.heldBaby || this.heldWeapon || null;
   }
 }
 
