@@ -114,9 +114,6 @@ export class SwapSystem {
             if (isOverlapping && !isStationary) {
               console.log(`[DEBUG] Players ${player1.playerId} and ${player2.playerId} are overlapping but not stationary`);
             }
-            if (!isOverlapping && isStationary) {
-              console.log(`[DEBUG] Players ${player1.playerId} and ${player2.playerId} are stationary but not overlapping`);
-            }
           }
           
           if (isOverlapping && isStationary) {
@@ -135,10 +132,6 @@ export class SwapSystem {
     const distance = Math.sqrt(dx * dx + dy * dy);
     const isOverlapping = distance <= PLAYER_OVERLAP_RADIUS;
     
-    if (DEBUG_MODE) {
-      console.log(`[DEBUG] Overlap check - P${player1.playerId} (${player1.x.toFixed(1)}, ${player1.y.toFixed(1)}) ↔ P${player2.playerId} (${player2.x.toFixed(1)}, ${player2.y.toFixed(1)}): distance=${distance.toFixed(2)}, threshold=${PLAYER_OVERLAP_RADIUS}, overlapping=${isOverlapping}`);
-    }
-    
     return isOverlapping;
   }
 
@@ -152,10 +145,6 @@ export class SwapSystem {
     const p2Moving = p2VelX > STATIONARY_VELOCITY_THRESHOLD || p2VelY > STATIONARY_VELOCITY_THRESHOLD;
     
     const isStationary = !p1Moving && !p2Moving;
-    
-    if (DEBUG_MODE) {
-      console.log(`[DEBUG] Stationary check - P${player1.playerId}: vx=${player1.body.velocity.x.toFixed(2)}, vy=${player1.body.velocity.y.toFixed(2)}, P${player2.playerId}: vx=${player2.body.velocity.x.toFixed(2)}, vy=${player2.body.velocity.y.toFixed(2)}, stationary=${isStationary}`);
-    }
     
     return isStationary;
   }

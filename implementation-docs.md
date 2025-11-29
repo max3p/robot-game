@@ -1024,7 +1024,8 @@ Ground items spawn within 3 tiles of start position.
    - Robot rendered as colored rectangle
    - Robot faces direction of movement
 
-2. **Lighting System**
+2. **Lighting System - DEFFERRED**
+    - use phaser-raycaster https://github.com/wiserim/phaser-raycaster
    - Create LightingSystem.ts
    - Set scene ambient light to very dark
    - Implement player ambient light (small radius)

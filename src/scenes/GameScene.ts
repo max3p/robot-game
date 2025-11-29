@@ -6,6 +6,7 @@ import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
 import { Robot } from '../entities/Robot';
 import { SwapSystem } from '../systems/SwapSystem';
+import { DetectionSystem } from '../systems/DetectionSystem';
 import { WeaponType, RobotType } from '../types';
 
 export class GameScene extends Phaser.Scene {
@@ -17,6 +18,7 @@ export class GameScene extends Phaser.Scene {
   private robots: Robot[] = [];
   private baby!: Baby;
   private swapSystem!: SwapSystem;
+  private detectionSystem!: DetectionSystem;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -29,6 +31,7 @@ export class GameScene extends Phaser.Scene {
     this.createWallCollisions();
     this.spawnPlayers();
     this.initializeSwapSystem();
+    this.initializeDetectionSystem();
     this.setupStartingLoadout(this.players.length);
     this.spawnTestRobot(); // Light version for testing/debugging
     
@@ -74,6 +77,9 @@ export class GameScene extends Phaser.Scene {
     this.robots.forEach(robot => {
       robot.update(delta);
     });
+    
+    // Update detection system (checks if robots detect players)
+    this.detectionSystem.update();
   }
 
   private renderLevel() {
@@ -287,6 +293,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Initializes the detection system for robot player detection
+   */
+  private initializeDetectionSystem() {
+    this.detectionSystem = new DetectionSystem();
+    this.detectionSystem.setPlayers(this.players);
+    this.detectionSystem.setLevelInfo(
+      this.levelData.grid,
+      this.levelData.tileSize,
+      this.levelOffsetX,
+      this.levelOffsetY
+    );
+    // Robots will be set after they're spawned
+  }
+
+  /**
    * Spawns a test robot for debugging purposes
    * Light version - spawns only the first robot from level data
    * Full spawning system will be implemented in Phase 3.7
@@ -323,6 +344,11 @@ export class GameScene extends Phaser.Scene {
     
     this.robots.push(robot);
     console.log(`🤖 Test robot spawned: ${robotSpawn.type} at (${worldX.toFixed(0)}, ${worldY.toFixed(0)})`);
+    
+    // Update detection system with robots after spawning
+    if (this.detectionSystem) {
+      this.detectionSystem.setRobots(this.robots);
+    }
   }
 
   /**

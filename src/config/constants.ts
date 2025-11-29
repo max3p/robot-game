@@ -47,7 +47,20 @@ export const PUSH_VELOCITY_THRESHOLD = 10; // Velocity difference to determine w
 export const SPIDER_SPEED = 180; // pixels per second
 export const SPIDER_SIZE = 24; // pixels
 export const SPIDER_COLOR = 0xFF69B4; // Pink
+export const SPIDER_LIGHT_RADIUS = 120; // pixels
+export const SPIDER_LIGHT_ANGLE = 60; // degrees (total cone angle)
+export const SPIDER_LIGHT_COLOR = 0xFF69B4; // Pink
+
+// Shock-Bot constants (for future phases)
+export const SHOCK_LIGHT_RADIUS = 150;
+export const SHOCK_LIGHT_ANGLE = 45; // degrees
+export const SHOCK_LIGHT_COLOR = 0x4169E1; // Blue
+
+// Flame-Bot constants (for future phases)
+export const FLAME_LIGHT_RADIUS = 180;
+export const FLAME_LIGHT_ANGLE = 50; // degrees
+export const FLAME_LIGHT_COLOR = 0xFF4500; // Red-orange
 
 // Debug
-export const DEBUG_MODE = false; // Enable verbose debug logging
+export const DEBUG_MODE = true; // Enable verbose debug logging
 
