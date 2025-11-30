@@ -22,6 +22,7 @@ import { LevelCompleteData } from './LevelCompleteScene';
  */
 export class GameScene extends Phaser.Scene {
   private levelData!: LevelData;
+  private playerCount: number = 4;
   private levelOffsetX = 0;
   private levelOffsetY = 0;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -42,9 +43,10 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  init(data?: { levelData?: LevelData }) {
-    // Accept level data from scene transition, or default to Level1
+  init(data?: { levelData?: LevelData; playerCount?: number }) {
+    // Accept level data and player count from scene transition, or default to Level1 and 4 players
     this.levelData = data?.levelData || Level1;
+    this.playerCount = data?.playerCount || 4;
     this.isGameOver = false; // Reset game over flag
     this.isLevelComplete = false; // Reset level complete flag (Phase 5.4)
     
@@ -287,9 +289,8 @@ export class GameScene extends Phaser.Scene {
       { x: PLAYER_SPAWN_OFFSET, y: PLAYER_SPAWN_OFFSET }    // Player 4: bottom-right
     ];
     
-    // Spawn players based on configuration (currently hardcoded to 4 for Phase 2)
-    const playerCount = 4;
-    for (let i = 1; i <= playerCount; i++) {
+    // Spawn players based on selected player count
+    for (let i = 1; i <= this.playerCount; i++) {
       const offset = offsets[i - 1];
       const player = new Player(this, baseX + offset.x, baseY + offset.y, i);
       this.players.push(player);
@@ -322,6 +323,8 @@ export class GameScene extends Phaser.Scene {
     console.log(`📦 Starting loadout: Player 1 received Baby`);
 
     // Remaining players start with weapons in order: Goo, EMP, Water
+    // Each active player gets exactly one item (baby or weapon)
+    // No ground items - simplified system
     const weaponTypes = [WeaponType.GOO_GUN, WeaponType.EMP_GUN, WeaponType.WATER_GUN];
     
     for (let i = 2; i <= Math.min(playerCount, 4); i++) {
@@ -336,7 +339,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // DISABLED: Ground item spawning system (kept for future use)
     // For fewer players: extra weapons spawn on ground near start
+    /*
     if (playerCount < 4) {
       const startPos = this.levelData.startPosition;
       const tileSize = this.levelData.tileSize;
@@ -360,6 +365,7 @@ export class GameScene extends Phaser.Scene {
         console.log(`📦 Starting loadout: ${weaponType} spawned on ground at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)})`);
       });
     }
+    */
   }
 
   /**

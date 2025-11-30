@@ -6,9 +6,9 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    // Boot scene is a placeholder that immediately transitions to GameScene
+    // Boot scene transitions to MenuScene
     // In later phases, this will handle asset loading
-    this.scene.start('GameScene');
+    this.scene.start('MenuScene');
   }
 }
 

@@ -52,7 +52,7 @@ export class LevelCompleteScene extends Phaser.Scene {
     this.nextLevelButton = createInteractiveButton(
       this,
       centerX,
-      centerY + 100,
+      centerY + 80,
       'NEXT LEVEL',
       {
         ...TEXT_STYLE_BUTTON,
@@ -62,6 +62,22 @@ export class LevelCompleteScene extends Phaser.Scene {
       () => {
         // Load next level (for now, restarts the same level)
         this.scene.start('GameScene', { levelData: nextLevelData });
+      }
+    );
+
+    // Main Menu button
+    createInteractiveButton(
+      this,
+      centerX,
+      centerY + 140,
+      'MAIN MENU',
+      {
+        ...TEXT_STYLE_BUTTON,
+        color: '#FFFFFF'
+      },
+      '#CCCCCC',
+      () => {
+        this.scene.start('MenuScene');
       }
     );
 

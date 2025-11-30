@@ -65,7 +65,9 @@ export class SwapSystem {
    * @param delta Time elapsed since last frame in milliseconds
    */
   update(delta: number) {
+    // DISABLED: Ground item pickup system (kept for future use)
     // Check each player against ground items (skip downed players)
+    /*
     this.players.forEach(player => {
       // Downed players cannot swap items
       if (player.isDowned) {
@@ -78,6 +80,7 @@ export class SwapSystem {
         }
       });
     });
+    */
 
     // Check for revivals first (Phase 4.9) - takes priority over swaps
     this.updateRevival(delta);

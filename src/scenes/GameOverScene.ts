@@ -50,7 +50,7 @@ export class GameOverScene extends Phaser.Scene {
     this.retryButton = createInteractiveButton(
       this,
       centerX,
-      centerY + 100,
+      centerY + 80,
       'RETRY LEVEL',
       {
         ...TEXT_STYLE_BUTTON,
@@ -60,6 +60,22 @@ export class GameOverScene extends Phaser.Scene {
       () => {
         // Restart the level by starting GameScene with the level data
         this.scene.start('GameScene', { levelData: this.gameOverData.levelData });
+      }
+    );
+
+    // Main Menu button
+    createInteractiveButton(
+      this,
+      centerX,
+      centerY + 140,
+      'MAIN MENU',
+      {
+        ...TEXT_STYLE_BUTTON,
+        color: '#FFFFFF'
+      },
+      '#CCCCCC',
+      () => {
+        this.scene.start('MenuScene');
       }
     );
 
