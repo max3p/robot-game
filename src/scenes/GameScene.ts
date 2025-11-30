@@ -38,6 +38,8 @@ export class GameScene extends Phaser.Scene {
   // Game state flags
   private isGameOver: boolean = false;
   private isLevelComplete: boolean = false;
+  private isPaused: boolean = false;
+  private escapeKey?: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -66,6 +68,11 @@ export class GameScene extends Phaser.Scene {
       this.scene.stop('UIScene');
     }
 
+    // Stop PauseScene if it's active
+    if (this.scene.isActive('PauseScene')) {
+      this.scene.stop('PauseScene');
+    }
+
     this.players = [];
     this.robots = [];
     this.lanterns = [];
@@ -77,6 +84,7 @@ export class GameScene extends Phaser.Scene {
     this.combatSystem = undefined!;
     this.levelOffsetX = 0;
     this.levelOffsetY = 0;
+    this.isPaused = false;
   }
 
   create() {
@@ -117,10 +125,29 @@ export class GameScene extends Phaser.Scene {
     // Send initial player data to UIScene
     this.sendUIUpdate();
     
+    // Set up Escape key to pause game
+    this.escapeKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.escapeKey.on('down', () => {
+      this.togglePause();
+    });
+    
+    // Listen for unpause event from PauseScene
+    this.events.on('unpause', () => {
+      this.resumeGame();
+    });
+    
     console.log(`✨ Game scene initialized and ready!`);
   }
 
   update(time: number, delta: number) {
+    // CRITICAL: If paused, don't update anything
+    // All systems (players, robots, baby, weapons, combat, detection, swap) are paused
+    // Physics world is also paused via this.physics.pause() in pauseGame()
+    // This ensures NO movement, timers, or game logic runs while paused
+    if (this.isPaused) {
+      return;
+    }
+
     // Phase 5.2: Check for game over (baby holder downed) - check early to prevent further updates
     if (!this.isGameOver && !this.isLevelComplete && this.baby) {
       const babyHolder = this.players.find(player => player.heldBaby === this.baby);
@@ -730,6 +757,74 @@ export class GameScene extends Phaser.Scene {
       // Send player data
       uiScene.events.emit('update-players', this.players);
     }
+  }
+
+  /**
+   * Toggles pause state - launches or stops PauseScene
+   */
+  private togglePause(): void {
+    // Don't pause if game is over or level is complete
+    if (this.isGameOver || this.isLevelComplete) {
+      return;
+    }
+
+    if (this.isPaused) {
+      // Unpause - stop PauseScene and resume physics
+      this.scene.stop('PauseScene');
+      this.resumeGame();
+    } else {
+      // Pause - stop all movement and launch PauseScene
+      this.pauseGame();
+      this.scene.launch('PauseScene', {
+        levelData: this.levelData,
+        playerCount: this.playerCount
+      });
+    }
+  }
+
+  /**
+   * Pauses all game systems - stops physics and all movement
+   */
+  private pauseGame(): void {
+    this.isPaused = true;
+    
+    // Pause Phaser physics world
+    this.physics.pause();
+    
+    // Stop all player velocities
+    this.players.forEach(player => {
+      if (player.body) {
+        player.body.setVelocity(0, 0);
+      }
+    });
+    
+    // Stop all robot velocities
+    this.robots.forEach(robot => {
+      if (robot.body) {
+        robot.body.setVelocity(0, 0);
+      }
+    });
+    
+    // Stop all weapon velocities (if any have physics bodies)
+    this.children.list.forEach(child => {
+      if (child instanceof Weapon && (child as any).body) {
+        (child as any).body.setVelocity(0, 0);
+      }
+    });
+    
+    console.log('⏸️ Game paused - all systems stopped');
+  }
+
+  /**
+   * Resumes all game systems - resumes physics
+   */
+  private resumeGame(): void {
+    this.isPaused = false;
+    
+    // Resume Phaser physics world
+    this.physics.resume();
+    
+    console.log('▶️ Game resumed - all systems active');
   }
 
   /**

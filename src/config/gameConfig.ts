@@ -4,6 +4,7 @@ import { BootScene } from '../scenes/BootScene';
 import { MenuScene } from '../scenes/MenuScene';
 import { GameScene } from '../scenes/GameScene';
 import { UIScene } from '../scenes/UIScene';
+import { PauseScene } from '../scenes/PauseScene';
 import { GameOverScene } from '../scenes/GameOverScene';
 import { LevelCompleteScene } from '../scenes/LevelCompleteScene';
 
@@ -25,6 +26,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     MenuScene,
     GameScene,
     UIScene,
+    PauseScene,
     GameOverScene,
     LevelCompleteScene
   ],
