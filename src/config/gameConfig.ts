@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from './constants';
 import { BootScene } from '../scenes/BootScene';
 import { GameScene } from '../scenes/GameScene';
+import { UIScene } from '../scenes/UIScene';
 import { GameOverScene } from '../scenes/GameOverScene';
 import { LevelCompleteScene } from '../scenes/LevelCompleteScene';
 
@@ -21,6 +22,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   scene: [
     BootScene,
     GameScene,
+    UIScene,
     GameOverScene,
     LevelCompleteScene
   ],

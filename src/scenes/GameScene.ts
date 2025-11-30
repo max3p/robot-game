@@ -15,7 +15,6 @@ import { Lantern } from '../entities/Lantern';
 import { RobotSpawn, WeaponType, RobotType, RobotState, LevelData } from '../types';
 import { GameOverData } from './GameOverScene';
 import { LevelCompleteData } from './LevelCompleteScene';
-import { renderHeartsUI } from '../utils/uiHelpers';
 
 /**
  * Main gameplay scene
@@ -33,7 +32,6 @@ export class GameScene extends Phaser.Scene {
   private detectionSystem!: DetectionSystem;
   private combatSystem!: CombatSystem;
   private lanterns: Lantern[] = [];
-  private heartsUI!: Phaser.GameObjects.Graphics;
   private exitZone!: Phaser.GameObjects.Rectangle;
   
   // Game state flags
@@ -66,7 +64,6 @@ export class GameScene extends Phaser.Scene {
     this.lanterns = [];
     this.baby = undefined!;
     this.walls = undefined!;
-    this.heartsUI = undefined!;
     this.exitZone = undefined!;
     this.swapSystem = undefined!;
     this.detectionSystem = undefined!;
@@ -107,8 +104,11 @@ export class GameScene extends Phaser.Scene {
     // This is set up after players are spawned, so players array is populated
     this.physics.add.overlap(this.players, this.exitZone, this.handleExitZoneOverlap);
     
-    // Create hearts UI
-    this.createHeartsUI();
+    // Launch UIScene as overlay
+    this.scene.launch('UIScene');
+    
+    // Send initial player data to UIScene
+    this.sendUIUpdate();
     
     console.log(`✨ Game scene initialized and ready!`);
   }
@@ -170,8 +170,8 @@ export class GameScene extends Phaser.Scene {
     // Update combat system (handles auto-shooting)
     this.combatSystem.update(delta);
     
-    // Update hearts UI
-    this.updateHeartsUI();
+    // Update UI scene with current player and baby data
+    this.sendUIUpdate();
   }
 
   private renderLevel() {
@@ -711,24 +711,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Creates the hearts UI display at the top of the screen
-   * Note: Future UI work will move this to a separate UIScene
+   * Sends player data to UIScene for display
    */
-  private createHeartsUI(): void {
-    this.heartsUI = this.add.graphics();
-    this.updateHeartsUI();
-  }
-
-  /**
-   * Updates the hearts UI to reflect current player health
-   * Uses UI helper for rendering (preparing for future UIScene migration)
-   */
-  private updateHeartsUI(): void {
-    if (!this.heartsUI || this.players.length === 0) {
-      return;
+  private sendUIUpdate(): void {
+    const uiScene = this.scene.get('UIScene');
+    if (uiScene && uiScene.scene.isActive()) {
+      // Send player data
+      uiScene.events.emit('update-players', this.players);
     }
-
-    renderHeartsUI(this.heartsUI, this.players);
   }
 
   /**
