@@ -3,6 +3,9 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
 import { TEXT_STYLE_TITLE, TEXT_STYLE_SUBTITLE, TEXT_STYLE_BUTTON, BUTTON_HOVER_COLOR_DARKEN } from '../config/uiConstants';
 import { createInteractiveButton } from '../utils/uiHelpers';
 import { Level1 } from '../levels/Level1';
+import { Level2 } from '../levels/Level2';
+import { Level3 } from '../levels/Level3';
+import { Level4 } from '../levels/Level4';
 import { LevelData } from '../types';
 
 /**
@@ -15,8 +18,8 @@ export class MenuScene extends Phaser.Scene {
   private levelButtons: Phaser.GameObjects.Text[] = [];
   private startButton?: Phaser.GameObjects.Text;
 
-  // Available levels (for now just Level1, but structured for easy expansion)
-  private availableLevels: LevelData[] = [Level1];
+  // Available levels
+  private availableLevels: LevelData[] = [Level1, Level2, Level3, Level4];
 
   constructor() {
     super({ key: 'MenuScene' });

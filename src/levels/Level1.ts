@@ -2,43 +2,25 @@ import { LevelData, RobotType, WeaponType } from '../types';
 
 export const Level1: LevelData = {
   id: 1,
-  name: 'Awakening',
+  name: 'Tutorial 1',
+  message: 'Get the baby to the exit!',
   tileSize: 96,
   grid: [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
-    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 0, 0, 1, 1, 0, 0, 0, 1],
-    [1, 0, 1, 0, 1, 0, 0, 1, 0, 1],
-    [1, 0, 1, 0, 0, 0, 1, 1, 0, 1],
-    [1, 0, 1, 1, 1, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+    [0, 0, 0, 0, 1, 0, 0, 1, 0, 1],
+    [0, 0, 0, 0, 1, 0, 0, 1, 0, 1],
+    [1, 1, 0, 0, 0, 0, 1, 1, 1, 1],
+    [1, 1, 1, 0, 0, 0, 1, 1, 1, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
   ],
-  startPosition: { x: 1, y: 1 },
-  exitPosition: { x: 8, y: 8 },
+  startPosition: { x: 1, y: 4 },
+  exitPosition: { x: 9, y: 5 },
   robots: [
-    {
-      type: RobotType.SPIDER_BOT,
-      position: { x: 5, y: 3 }
-    },
-    {
-      type: RobotType.SHOCK_BOT,
-      position: { x: 1, y: 8 }
-    }
   ],
   groundItems: [
-    {
-      type: WeaponType.EMP_GUN,
-      position: { x: 2, y: 1 },
-      forPlayerCount: [1, 2]
-    },
-    {
-      type: WeaponType.WATER_GUN,
-      position: { x: 3, y: 1 },
-      forPlayerCount: [1, 2, 3]
-    }
   ]
 };
 

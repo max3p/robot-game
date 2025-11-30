@@ -7,7 +7,8 @@ import { TEXT_STYLE_TITLE, TEXT_STYLE_SUBTITLE, TEXT_STYLE_BUTTON, OVERLAY_ALPHA
 
 export interface LevelCompleteData {
   levelData: LevelData;
-  nextLevelData?: LevelData; // Optional next level (for future use)
+  nextLevelData?: LevelData; // Optional next level (undefined if all levels complete)
+  playerCount?: number; // Player count to pass to next level
 }
 
 export class LevelCompleteScene extends Phaser.Scene {
@@ -23,7 +24,7 @@ export class LevelCompleteScene extends Phaser.Scene {
     // Default to Level1 if data is not provided (shouldn't happen in normal gameplay)
     this.levelCompleteData = data || {
       levelData: Level1,
-      nextLevelData: Level1 // For now, next level is the same level
+      nextLevelData: undefined
     };
   }
 
@@ -51,24 +52,49 @@ export class LevelCompleteScene extends Phaser.Scene {
       color: '#FFFFFF'
     }).setOrigin(0.5, 0.5);
 
-    // Next Level button (for now, restarts the same level)
-    const nextLevelData = this.levelCompleteData.nextLevelData || this.levelCompleteData.levelData;
-    
-    this.nextLevelButton = createInteractiveButton(
-      this,
-      centerX,
-      centerY + 80,
-      'NEXT LEVEL',
-      {
-        ...TEXT_STYLE_BUTTON,
-        color: '#00FF00'
-      },
-      '#00CC00',
-      () => {
-        // Load next level (for now, restarts the same level)
-        this.scene.start('GameScene', { levelData: nextLevelData });
-      }
-    );
+    // Check if there's a next level or if all levels are complete
+    const nextLevelData = this.levelCompleteData.nextLevelData;
+    const playerCount = this.levelCompleteData.playerCount || 4;
+
+    if (nextLevelData) {
+      // There's a next level - show Next Level button
+      this.nextLevelButton = createInteractiveButton(
+        this,
+        centerX,
+        centerY + 80,
+        'NEXT LEVEL',
+        {
+          ...TEXT_STYLE_BUTTON,
+          color: '#00FF00'
+        },
+        '#00CC00',
+        () => {
+          // Load next level with same player count
+          this.scene.start('GameScene', { 
+            levelData: nextLevelData,
+            playerCount: playerCount
+          });
+        }
+      );
+    } else {
+      // All levels complete - show Victory button
+      this.nextLevelButton = createInteractiveButton(
+        this,
+        centerX,
+        centerY + 80,
+        'VICTORY!',
+        {
+          ...TEXT_STYLE_BUTTON,
+          color: '#FFD700',
+          fontSize: '36px'
+        },
+        '#FFA500',
+        () => {
+          // Show victory scene
+          this.scene.start('VictoryScene');
+        }
+      );
+    }
 
     // Main Menu button
     createInteractiveButton(

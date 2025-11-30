@@ -16,6 +16,8 @@ export class UIScene extends Phaser.Scene {
     keyBoxes?: Phaser.GameObjects.Rectangle[];
     keyTexts?: Phaser.GameObjects.Text[];
   }> = [];
+  private levelMessageText?: Phaser.GameObjects.Text;
+  private levelMessage2Text?: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'UIScene' });
@@ -31,6 +33,10 @@ export class UIScene extends Phaser.Scene {
     
     // Listen for player updates from GameScene
     this.events.on('update-players', this.updatePlayers.bind(this));
+    
+    // Listen for level message updates from GameScene
+    this.events.on('update-level-message', this.updateLevelMessage.bind(this));
+    this.events.on('update-level-message2', this.updateLevelMessage2.bind(this));
     
     // Initialize player UI elements array
     this.playerUIElements = [];
@@ -333,7 +339,95 @@ export class UIScene extends Phaser.Scene {
     return { width: totalHeartsWidth, height: heartSize };
   }
 
+  /**
+   * Updates the level message display
+   * Called from GameScene via event
+   */
+  private updateLevelMessage(message: string | undefined): void {
+    console.log(`📝 UIScene received level message:`, message);
+    
+    // Remove existing message text if it exists
+    if (this.levelMessageText) {
+      this.levelMessageText.destroy();
+      this.levelMessageText = undefined;
+    }
 
+    // Only create message text if message is provided
+    if (message && message.trim().length > 0) {
+      console.log(`📝 Creating level message text: "${message}"`);
+      // Position message below player UI
+      // Player UI starts at sectionTop (10px) and has contentHeight (~80-100px)
+      // So message should be positioned around 110-120px from top
+      const messageY = 110;
+      
+      this.levelMessageText = this.add.text(
+        GAME_WIDTH / 2,
+        messageY,
+        message,
+        {
+          fontSize: '18px',
+          color: '#FFFFFF',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 2,
+          align: 'center',
+          wordWrap: { width: GAME_WIDTH - 40 } // Allow wrapping with margins
+        }
+      );
+      this.levelMessageText.setOrigin(0.5, 0);
+      this.levelMessageText.setDepth(1001); // Above player UI
+    }
+  }
+
+  /**
+   * Updates the level message2 display
+   * Called from GameScene via event
+   */
+  private updateLevelMessage2(message: string | undefined): void {
+    console.log(`📝 UIScene received level message2:`, message);
+    
+    // Remove existing message2 text if it exists
+    if (this.levelMessage2Text) {
+      this.levelMessage2Text.destroy();
+      this.levelMessage2Text = undefined;
+    }
+
+    // Only create message2 text if message is provided
+    if (message && message.trim().length > 0) {
+      console.log(`📝 Creating level message2 text: "${message}"`);
+      
+      // Position message2 below message1
+      // message1 is at y=110, so message2 should be below it
+      // If message1 exists, position below it; otherwise use same starting position
+      let message2Y: number;
+      if (this.levelMessageText) {
+        // Position below message1 with spacing
+        // Get the bottom of message1 text (top + height)
+        const message1Bottom = 110 + this.levelMessageText.height;
+        message2Y = message1Bottom + 10; // 10px spacing between messages
+      } else {
+        // No message1, so position at the same starting point
+        message2Y = 110;
+      }
+      
+      this.levelMessage2Text = this.add.text(
+        GAME_WIDTH / 2,
+        message2Y,
+        message,
+        {
+          fontSize: '18px',
+          color: '#FFFFFF',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 2,
+          align: 'center',
+          wordWrap: { width: GAME_WIDTH - 40 } // Allow wrapping with margins
+        }
+      );
+      this.levelMessage2Text.setOrigin(0.5, 0);
+      this.levelMessage2Text.setDepth(1001); // Above player UI
+    }
+  }
 }
 
 

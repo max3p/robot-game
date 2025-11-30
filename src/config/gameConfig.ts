@@ -7,6 +7,7 @@ import { UIScene } from '../scenes/UIScene';
 import { PauseScene } from '../scenes/PauseScene';
 import { GameOverScene } from '../scenes/GameOverScene';
 import { LevelCompleteScene } from '../scenes/LevelCompleteScene';
+import { VictoryScene } from '../scenes/VictoryScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -28,7 +29,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     UIScene,
     PauseScene,
     GameOverScene,
-    LevelCompleteScene
+    LevelCompleteScene,
+    VictoryScene
   ],
   render: {
     pixelArt: true,

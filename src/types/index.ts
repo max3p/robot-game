@@ -12,6 +12,8 @@ export interface LevelData {
   exitPosition: Vector2; // tile coordinates
   robots: RobotSpawn[];
   groundItems: ItemSpawn[];
+  message?: string; // Optional message to display below player UI
+  message2?: string; // Optional second message to display below message1
 }
 
 export interface RobotSpawn {

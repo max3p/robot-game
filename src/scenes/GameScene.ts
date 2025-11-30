@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, DEBUG_MODE } from '../config/constants';
+import { Level2 } from '../levels/Level2';
+import { Level3 } from '../levels/Level3';
+import { Level4 } from '../levels/Level4';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, DEBUG_MODE, UI_RESERVED_HEIGHT } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -15,6 +18,7 @@ import { Lantern } from '../entities/Lantern';
 import { RobotSpawn, WeaponType, RobotType, RobotState, LevelData } from '../types';
 import { GameOverData } from './GameOverScene';
 import { LevelCompleteData } from './LevelCompleteScene';
+import { validateLevelDimensions } from '../utils/levelValidation';
 
 /**
  * Main gameplay scene
@@ -51,6 +55,9 @@ export class GameScene extends Phaser.Scene {
     this.playerCount = data?.playerCount || 4;
     this.isGameOver = false; // Reset game over flag
     this.isLevelComplete = false; // Reset level complete flag (Phase 5.4)
+    
+    // Validate level dimensions - throws error if invalid
+    validateLevelDimensions(this.levelData);
     
     // Ensure arrays are reset (defensive)
     this.players = [];
@@ -122,8 +129,12 @@ export class GameScene extends Phaser.Scene {
     // Launch UIScene as overlay
     this.scene.launch('UIScene');
     
-    // Send initial player data to UIScene
-    this.sendUIUpdate();
+    // Send initial player data to UIScene (with small delay to ensure UIScene is ready)
+    this.time.delayedCall(10, () => {
+      this.sendUIUpdate();
+      this.sendLevelMessage();
+      this.sendLevelMessage2();
+    });
     
     // Set up Escape key to pause game
     this.escapeKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -214,10 +225,12 @@ export class GameScene extends Phaser.Scene {
     const exitPos = this.levelData.exitPosition;
 
     // Calculate offset to center the level on screen
+    // Top row is reserved for UI, so level starts below it
     const levelWidth = grid[0].length * tileSize;
     const levelHeight = grid.length * tileSize;
     this.levelOffsetX = (GAME_WIDTH - levelWidth) / 2;
-    this.levelOffsetY = (GAME_HEIGHT - levelHeight) / 2;
+    // Level starts below the UI area (one tile row)
+    this.levelOffsetY = UI_RESERVED_HEIGHT + (GAME_HEIGHT - UI_RESERVED_HEIGHT - levelHeight) / 2;
 
     // Render each tile in the grid
     for (let row = 0; row < grid.length; row++) {
@@ -760,6 +773,40 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Sends level message to UIScene for display
+   */
+  private sendLevelMessage(): void {
+    const uiScene = this.scene.get('UIScene');
+    if (uiScene && uiScene.scene.isActive()) {
+      // Send level message if provided
+      const message = this.levelData.message;
+      if (message) {
+        console.log(`📝 Sending level message to UIScene: "${message}"`);
+      }
+      uiScene.events.emit('update-level-message', message);
+    } else {
+      console.warn('⚠️ UIScene not active when trying to send level message');
+    }
+  }
+
+  /**
+   * Sends level message2 to UIScene for display
+   */
+  private sendLevelMessage2(): void {
+    const uiScene = this.scene.get('UIScene');
+    if (uiScene && uiScene.scene.isActive()) {
+      // Send level message2 if provided
+      const message = this.levelData.message2;
+      if (message) {
+        console.log(`📝 Sending level message2 to UIScene: "${message}"`);
+      }
+      uiScene.events.emit('update-level-message2', message);
+    } else {
+      console.warn('⚠️ UIScene not active when trying to send level message2');
+    }
+  }
+
+  /**
    * Toggles pause state - launches or stops PauseScene
    */
   private togglePause(): void {
@@ -893,11 +940,18 @@ export class GameScene extends Phaser.Scene {
 
     this.isLevelComplete = true;
 
+    // Determine next level based on current level ID
+    const allLevels = [Level1, Level2, Level3, Level4];
+    const currentLevelIndex = allLevels.findIndex(level => level.id === this.levelData.id);
+    const nextLevel = currentLevelIndex >= 0 && currentLevelIndex < allLevels.length - 1
+      ? allLevels[currentLevelIndex + 1]
+      : undefined; // No next level (all levels complete)
+
     // Prepare level complete data
-    // For now, next level is the same level (since we only have one level)
     const levelCompleteData: LevelCompleteData = {
       levelData: this.levelData,
-      nextLevelData: this.levelData // Same level for now
+      nextLevelData: nextLevel,
+      playerCount: this.playerCount // Pass player count for next level
     };
 
     // Transition to LevelCompleteScene

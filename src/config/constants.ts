@@ -3,6 +3,11 @@ export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 960;
 export const TILE_SIZE = 96;
 
+// Level dimensions - enforced for all levels
+export const REQUIRED_LEVEL_WIDTH = 10; // tiles
+export const REQUIRED_LEVEL_HEIGHT = 9; // tiles
+export const UI_RESERVED_HEIGHT = TILE_SIZE; // Top row reserved for UI (96px)
+
 // Player
 export const BASE_PLAYER_SPEED = 200;
 export const BABY_HOLDER_SPEED = 120; // 60% of base speed
