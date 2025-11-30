@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, MAX_PLAYER_HEARTS, PLAYER_COLORS, DEBUG_MODE } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, DEBUG_MODE } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -14,7 +14,13 @@ import { CombatSystem } from '../systems/CombatSystem';
 import { Lantern } from '../entities/Lantern';
 import { RobotSpawn, WeaponType, RobotType, RobotState, LevelData } from '../types';
 import { GameOverData } from './GameOverScene';
+import { LevelCompleteData } from './LevelCompleteScene';
+import { renderHeartsUI } from '../utils/uiHelpers';
 
+/**
+ * Main gameplay scene
+ * Handles level rendering, entity management, game logic, and UI
+ */
 export class GameScene extends Phaser.Scene {
   private levelData!: LevelData;
   private levelOffsetX = 0;
@@ -28,7 +34,11 @@ export class GameScene extends Phaser.Scene {
   private combatSystem!: CombatSystem;
   private lanterns: Lantern[] = [];
   private heartsUI!: Phaser.GameObjects.Graphics;
-  private isGameOver: boolean = false; // Prevent multiple game over triggers
+  private exitZone!: Phaser.GameObjects.Rectangle;
+  
+  // Game state flags
+  private isGameOver: boolean = false;
+  private isLevelComplete: boolean = false;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -38,6 +48,7 @@ export class GameScene extends Phaser.Scene {
     // Accept level data from scene transition, or default to Level1
     this.levelData = data?.levelData || Level1;
     this.isGameOver = false; // Reset game over flag
+    this.isLevelComplete = false; // Reset level complete flag (Phase 5.4)
     
     // Ensure arrays are reset (defensive)
     this.players = [];
@@ -45,18 +56,21 @@ export class GameScene extends Phaser.Scene {
     this.lanterns = [];
   }
 
-  shutdown() {
-    // Phaser automatically cleans up the scene when it restarts
-    // We just need to reset our references so they don't point to destroyed objects
+  /**
+   * Called when scene is shut down (e.g., when transitioning to another scene)
+   * Phaser automatically cleans up game objects, we just reset references
+   */
+  shutdown(): void {
     this.players = [];
     this.robots = [];
     this.lanterns = [];
-    this.baby = undefined as any;
-    this.walls = undefined as any;
-    this.heartsUI = undefined as any;
-    this.swapSystem = undefined as any;
-    this.detectionSystem = undefined as any;
-    this.combatSystem = undefined as any;
+    this.baby = undefined!;
+    this.walls = undefined!;
+    this.heartsUI = undefined!;
+    this.exitZone = undefined!;
+    this.swapSystem = undefined!;
+    this.detectionSystem = undefined!;
+    this.combatSystem = undefined!;
     this.levelOffsetX = 0;
     this.levelOffsetY = 0;
   }
@@ -66,6 +80,7 @@ export class GameScene extends Phaser.Scene {
     
     this.renderLevel();
     this.createWallCollisions();
+    this.createExitZone();
     this.spawnPlayers();
     this.initializeSwapSystem();
     this.initializeDetectionSystem();
@@ -88,6 +103,10 @@ export class GameScene extends Phaser.Scene {
     // Set up collisions between robots and walls
     this.physics.add.collider(this.robots, this.walls, this.handleRobotWallCollision.bind(this));
     
+    // Set up collision between players and exit zone (Phase 5.4)
+    // This is set up after players are spawned, so players array is populated
+    this.physics.add.overlap(this.players, this.exitZone, this.handleExitZoneOverlap.bind(this));
+    
     // Create hearts UI
     this.createHeartsUI();
     
@@ -96,7 +115,7 @@ export class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     // Phase 5.2: Check for game over (baby holder downed) - check early to prevent further updates
-    if (!this.isGameOver && this.baby) {
+    if (!this.isGameOver && !this.isLevelComplete && this.baby) {
       const babyHolder = this.players.find(player => player.heldBaby === this.baby);
       if (babyHolder && babyHolder.isDowned) {
         this.triggerGameOver('Baby holder down!');
@@ -104,8 +123,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // If game over, don't update anything
-    if (this.isGameOver) {
+    // If game over or level complete, don't update anything
+    if (this.isGameOver || this.isLevelComplete) {
       return;
     }
 
@@ -222,9 +241,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Spawns all players at the level start position with slight offsets
+   * Creates the exit zone collision area (Phase 5.4)
+   * @throws Error if level data is invalid
    */
-  private spawnPlayers() {
+  private createExitZone(): void {
+    if (!this.levelData?.exitPosition) {
+      throw new Error('Invalid level data: missing exit position');
+    }
+
+    const exitPos = this.levelData.exitPosition;
+    const tileSize = this.levelData.tileSize;
+
+    // Calculate exit zone position in world coordinates
+    const exitX = exitPos.x * tileSize + this.levelOffsetX + tileSize / 2;
+    const exitY = exitPos.y * tileSize + this.levelOffsetY + tileSize / 2;
+
+    // Create exit zone as an invisible physics rectangle
+    this.exitZone = this.add.rectangle(exitX, exitY, tileSize, tileSize, EXIT_COLOR, 0);
+    this.exitZone.setVisible(false);
+    this.physics.add.existing(this.exitZone, true); // true = static body
+  }
+
+  /**
+   * Spawns all players at the level start position with slight offsets
+   * @throws Error if level data is invalid
+   */
+  private spawnPlayers(): void {
+    if (!this.levelData?.startPosition) {
+      throw new Error('Invalid level data: missing start position');
+    }
+
     const startPos = this.levelData.startPosition;
     const tileSize = this.levelData.tileSize;
     
@@ -233,12 +279,12 @@ export class GameScene extends Phaser.Scene {
     const baseY = startPos.y * tileSize + this.levelOffsetY + tileSize / 2;
     
     // Spawn 4 players with slight offsets so they don't overlap
-    const offsetDistance = 24; // pixels
+    const PLAYER_SPAWN_OFFSET = 24; // pixels
     const offsets = [
-      { x: -offsetDistance, y: -offsetDistance }, // Player 1: top-left
-      { x: offsetDistance, y: -offsetDistance },  // Player 2: top-right
-      { x: -offsetDistance, y: offsetDistance },  // Player 3: bottom-left
-      { x: offsetDistance, y: offsetDistance }    // Player 4: bottom-right
+      { x: -PLAYER_SPAWN_OFFSET, y: -PLAYER_SPAWN_OFFSET }, // Player 1: top-left
+      { x: PLAYER_SPAWN_OFFSET, y: -PLAYER_SPAWN_OFFSET },  // Player 2: top-right
+      { x: -PLAYER_SPAWN_OFFSET, y: PLAYER_SPAWN_OFFSET },  // Player 3: bottom-left
+      { x: PLAYER_SPAWN_OFFSET, y: PLAYER_SPAWN_OFFSET }    // Player 4: bottom-right
     ];
     
     // Spawn players based on configuration (currently hardcoded to 4 for Phase 2)
@@ -255,16 +301,25 @@ export class GameScene extends Phaser.Scene {
   /**
    * Sets up the starting loadout for all players based on player count
    * @param playerCount Number of players (1-4)
+   * @throws Error if player count is invalid or players array is empty
    */
-  private setupStartingLoadout(playerCount: number) {
+  private setupStartingLoadout(playerCount: number): void {
+    if (playerCount < 1 || playerCount > 4) {
+      throw new Error(`Invalid player count: ${playerCount}. Must be between 1 and 4.`);
+    }
+    
+    if (this.players.length === 0) {
+      throw new Error('Cannot setup starting loadout: no players spawned');
+    }
     // Phase 2.7: Starting Loadout
     // Player 1 always starts with baby
     this.baby = new Baby(this);
     const player1 = this.players.find(p => p.playerId === 1);
-    if (player1) {
-      player1.setHeldBaby(this.baby);
-      console.log(`📦 Starting loadout: Player 1 received Baby`);
+    if (!player1) {
+      throw new Error('Player 1 not found in players array');
     }
+    player1.setHeldBaby(this.baby);
+    console.log(`📦 Starting loadout: Player 1 received Baby`);
 
     // Remaining players start with weapons in order: Goo, EMP, Water
     const weaponTypes = [WeaponType.GOO_GUN, WeaponType.EMP_GUN, WeaponType.WATER_GUN];
@@ -440,8 +495,12 @@ export class GameScene extends Phaser.Scene {
    * Spawns all robots from level data based on player count
    * Phase 3.7: Robust spawning system
    * Scales robot count based on number of players
+   * @throws Error if level data is invalid
    */
-  private spawnRobots() {
+  private spawnRobots(): void {
+    if (!this.levelData) {
+      throw new Error('Cannot spawn robots: level data not initialized');
+    }
     const tileSize = this.levelData.tileSize;
     const playerCount = this.players.length;
     
@@ -653,100 +712,23 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Creates the hearts UI display at the top of the screen
+   * Note: Future UI work will move this to a separate UIScene
    */
   private createHeartsUI(): void {
     this.heartsUI = this.add.graphics();
-    this.heartsUI.setDepth(100); // Above everything
     this.updateHeartsUI();
   }
 
   /**
    * Updates the hearts UI to reflect current player health
+   * Uses UI helper for rendering (preparing for future UIScene migration)
    */
   private updateHeartsUI(): void {
-    if (!this.heartsUI) {
+    if (!this.heartsUI || this.players.length === 0) {
       return;
     }
 
-    this.heartsUI.clear();
-
-    const HEART_SIZE = 20; // Size of each heart
-    const HEART_SPACING = 5; // Space between hearts
-    const PLAYER_SPACING = 30; // Space between player groups
-    const MARGIN_TOP = 20; // Top margin
-    const MARGIN_LEFT = 20; // Left margin
-
-    // Draw hearts for each player
-    this.players.forEach((player, playerIndex) => {
-      const playerColor = PLAYER_COLORS[player.playerId - 1];
-      const startX = MARGIN_LEFT + playerIndex * (MAX_PLAYER_HEARTS * (HEART_SIZE + HEART_SPACING) + PLAYER_SPACING);
-      const startY = MARGIN_TOP;
-
-      // Draw hearts (filled for remaining, outline for lost)
-      for (let i = 0; i < MAX_PLAYER_HEARTS; i++) {
-        const heartX = startX + i * (HEART_SIZE + HEART_SPACING);
-        const heartY = startY;
-        const hasHeart = i < player.hearts;
-
-        if (hasHeart) {
-          // Draw filled heart
-          this.drawHeart(this.heartsUI, heartX, heartY, HEART_SIZE, playerColor, true);
-        } else {
-          // Draw outline heart (gray)
-          this.drawHeart(this.heartsUI, heartX, heartY, HEART_SIZE, 0x666666, false);
-        }
-      }
-    });
-  }
-
-  /**
-   * Draws a heart shape
-   * @param graphics Graphics object to draw on
-   * @param x X position (center)
-   * @param y Y position (center)
-   * @param size Size of the heart
-   * @param color Color of the heart
-   * @param filled Whether to fill the heart or just draw outline
-   */
-  private drawHeart(graphics: Phaser.GameObjects.Graphics, x: number, y: number, size: number, color: number, filled: boolean): void {
-    const halfSize = size / 2;
-    const radius = halfSize * 0.5;
-
-    // Heart shape: two circles on top, triangle on bottom
-    // Left circle center
-    const leftCircleX = x - halfSize * 0.5;
-    const leftCircleY = y - halfSize * 0.3;
-    
-    // Right circle center
-    const rightCircleX = x + halfSize * 0.5;
-    const rightCircleY = y - halfSize * 0.3;
-    
-    // Triangle point (bottom of heart)
-    const pointX = x;
-    const pointY = y + halfSize * 0.5;
-
-    if (filled) {
-      // Draw filled heart
-      graphics.fillStyle(color, 1);
-      graphics.fillCircle(leftCircleX, leftCircleY, radius);
-      graphics.fillCircle(rightCircleX, rightCircleY, radius);
-      graphics.fillTriangle(
-        leftCircleX - radius, leftCircleY,
-        rightCircleX + radius, rightCircleY,
-        pointX, pointY
-      );
-    } else {
-      // Draw outline heart (gray)
-      graphics.lineStyle(2, color, 1);
-      graphics.strokeCircle(leftCircleX, leftCircleY, radius);
-      graphics.strokeCircle(rightCircleX, rightCircleY, radius);
-      graphics.beginPath();
-      graphics.moveTo(leftCircleX - radius, leftCircleY);
-      graphics.lineTo(rightCircleX + radius, rightCircleY);
-      graphics.lineTo(pointX, pointY);
-      graphics.closePath();
-      graphics.strokePath();
-    }
+    renderHeartsUI(this.heartsUI, this.players);
   }
 
   /**
@@ -755,7 +737,12 @@ export class GameScene extends Phaser.Scene {
    */
   private triggerGameOver(reason: string): void {
     if (this.isGameOver) {
-      return; // Already triggered
+      return; // Already triggered, prevent duplicate transitions
+    }
+
+    if (!reason || reason.trim().length === 0) {
+      console.warn('Game over triggered with empty reason, using default');
+      reason = 'Game Over';
     }
 
     this.isGameOver = true;
@@ -775,8 +762,61 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Cleans up all entities and resets scene state (for retry functionality)
-   * Called at the start of create() to ensure fresh state
+   * Handles overlap between player and exit zone (Phase 5.4)
+   * @param playerObj The player that overlapped with exit zone
+   * @param exitZoneObj The exit zone rectangle (unused, but required by Phaser overlap callback)
+   */
+  private handleExitZoneOverlap(
+    playerObj: Phaser.GameObjects.GameObject,
+    exitZoneObj: Phaser.GameObjects.GameObject
+  ): void {
+    if (this.isLevelComplete || this.isGameOver) {
+      return; // Already triggered or game over
+    }
+
+    if (!(playerObj instanceof Player)) {
+      return; // Safety check: ensure it's actually a Player
+    }
+
+    const player = playerObj;
+    
+    // Check if this player is holding the baby
+    if (player.heldBaby === this.baby && !player.isDowned) {
+      // Baby holder reached exit - level complete!
+      this.triggerLevelComplete();
+    }
+  }
+
+  /**
+   * Triggers level complete and transitions to LevelCompleteScene (Phase 5.4)
+   */
+  private triggerLevelComplete(): void {
+    if (this.isLevelComplete) {
+      return; // Already triggered
+    }
+
+    this.isLevelComplete = true;
+
+    // Prepare level complete data
+    // For now, next level is the same level (since we only have one level)
+    const levelCompleteData: LevelCompleteData = {
+      levelData: this.levelData,
+      nextLevelData: this.levelData // Same level for now
+    };
+
+    // Transition to LevelCompleteScene
+    this.scene.start('LevelCompleteScene', levelCompleteData);
+
+    if (DEBUG_MODE) {
+      console.log(`🎉 Level Complete: ${this.levelData.name}`);
+    }
+  }
+
+  /**
+   * Cleans up all entities and resets scene state
+   * NOTE: This method is currently unused as Phaser handles cleanup automatically.
+   * Kept for reference in case manual cleanup is needed in the future.
+   * @deprecated Phaser automatically cleans up scenes on shutdown
    */
   private cleanupScene(): void {
     // Destroy all players

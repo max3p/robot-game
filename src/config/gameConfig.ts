@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from './constants';
 import { BootScene } from '../scenes/BootScene';
 import { GameScene } from '../scenes/GameScene';
 import { GameOverScene } from '../scenes/GameOverScene';
+import { LevelCompleteScene } from '../scenes/LevelCompleteScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -20,7 +21,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   scene: [
     BootScene,
     GameScene,
-    GameOverScene
+    GameOverScene,
+    LevelCompleteScene
   ],
   render: {
     pixelArt: true,
