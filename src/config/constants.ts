@@ -105,6 +105,8 @@ export const WATER_GUN_COOLDOWN = 1000; // milliseconds
 export const SPIDER_GOO_HITS_TO_KILL = 3; // Number of goo hits to kill spider
 export const SPIDER_GOO_SPEED_REDUCTION = 0.33; // 33% speed reduction per hit
 export const SPIDER_LANTERN_RADIUS = 100; // pixels - permanent light radius
+export const SHOCK_EMP_HITS_TO_KILL = 4; // Number of EMP hits to kill shock-bot
+export const SHOCK_EMP_DAZED_DURATION = 2000; // milliseconds - 2 seconds dazed state after EMP hit
 
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging

@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SHOCK_SPEED, SHOCK_SIZE, SHOCK_COLOR, SHOCK_ATTACK_RANGE, SHOCK_ATTACK_COOLDOWN, SHOCK_ATTACK_DAMAGE, SHOCK_ATTACK_CHARGE_TIME, SHOCK_ATTACK_AOE_RADIUS, SHOCK_MIN_CHASE_DISTANCE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
+import { SHOCK_SPEED, SHOCK_SIZE, SHOCK_COLOR, SHOCK_ATTACK_RANGE, SHOCK_ATTACK_COOLDOWN, SHOCK_ATTACK_DAMAGE, SHOCK_ATTACK_CHARGE_TIME, SHOCK_ATTACK_AOE_RADIUS, SHOCK_MIN_CHASE_DISTANCE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, SHOCK_EMP_HITS_TO_KILL, SHOCK_EMP_DAZED_DURATION } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -24,6 +24,16 @@ export class ShockBot extends Robot {
   private chargeProgressBar?: Phaser.GameObjects.Graphics;
   
   private readonly SHOCK_DURATION = 250; // milliseconds
+  
+  // EMP hit tracking (Phase 4.3)
+  private empHits: number = 0; // Number of EMP hits received
+  private isDazed: boolean = false; // True when in dazed state after EMP hit
+  private dazedTimer: number = 0; // Timer for dazed state duration
+  
+  // EMP kill effect (Phase 4.3)
+  private isFadingOut: boolean = false;
+  private fadeOutTimer: number = 0;
+  private readonly FADE_OUT_DURATION = 1000; // milliseconds - 1 second fade out
 
   /**
    * Creates a new ShockBot instance
@@ -62,6 +72,11 @@ export class ShockBot extends Robot {
     this.chargeTimer = 0;
     this.shockTimer = 0;
     this.isShocking = false;
+    
+    // Initialize EMP hit tracking
+    this.empHits = 0;
+    this.isDazed = false;
+    this.dazedTimer = 0;
   }
 
   /**
@@ -71,6 +86,39 @@ export class ShockBot extends Robot {
    * @param players Optional array of players in the scene (required for ALERT/ATTACKING states)
    */
   update(delta: number, players?: Player[]): void {
+    // Update fade out effect if active (even when dead)
+    if (this.isFadingOut) {
+      this.updateFadeOut(delta);
+    }
+    
+    // Don't update anything else if dead
+    if (this.state === RobotState.DEAD) {
+      return;
+    }
+    
+    // Update dazed timer
+    if (this.isDazed) {
+      this.dazedTimer -= delta;
+      if (this.dazedTimer <= 0) {
+        // Dazed state complete, resume normal behavior
+        this.isDazed = false;
+        this.dazedTimer = 0;
+        if (DEBUG_MODE) {
+          console.log(`⚡ Shock-bot recovered from EMP daze. Resuming normal behavior.`);
+        }
+      } else {
+        // Still dazed - stop all movement and attacks
+        this.body.setVelocity(0, 0);
+        this.isCharging = false;
+        this.isShocking = false;
+        this.chargeTimer = 0;
+        this.shockTimer = 0;
+        this.clearAttackVisuals();
+        // Don't process any other updates while dazed
+        return;
+      }
+    }
+    
     // Update charge timer
     if (this.chargeTimer > 0) {
       this.chargeTimer -= delta;
@@ -105,6 +153,113 @@ export class ShockBot extends Robot {
         this.body.setVelocity(0, 0);
       }
     }
+  }
+  
+  /**
+   * Updates fade out animation
+   * Phase 4.3: EMP Gun Effect
+   */
+  private updateFadeOut(delta: number): void {
+    this.fadeOutTimer += delta;
+    const fadeProgress = this.fadeOutTimer / this.FADE_OUT_DURATION;
+    
+    if (fadeProgress >= 1) {
+      // Fade complete - fully invisible
+      this.setAlpha(0);
+      this.isFadingOut = false;
+    } else {
+      // Gradually fade out (1.0 to 0.0)
+      this.setAlpha(1 - fadeProgress);
+    }
+  }
+  
+  /**
+   * Applies EMP gun hit to shock-bot
+   * Phase 4.3: EMP Gun Effect
+   * - Each hit causes 2 second dazed state
+   * - After 4 hits: shock-bot dies and fades out
+   * - Light removed when dead (debug visuals destroyed)
+   */
+  applyEMPHit(): void {
+    if (this.state === RobotState.DEAD) {
+      return; // Already dead
+    }
+    
+    this.empHits++;
+    
+    if (this.empHits >= SHOCK_EMP_HITS_TO_KILL) {
+      // After 4 hits: shock-bot dies
+      this.killWithEMP();
+    } else {
+      // Enter dazed state for 2 seconds
+      this.isDazed = true;
+      this.dazedTimer = SHOCK_EMP_DAZED_DURATION;
+      
+      // Stop all movement and attacks immediately
+      this.body.setVelocity(0, 0);
+      this.isCharging = false;
+      this.isShocking = false;
+      this.chargeTimer = 0;
+      this.shockTimer = 0;
+      this.clearAttackVisuals();
+      
+      // Cancel current state (return to patrol after daze)
+      const previousState = this.state;
+      this.state = RobotState.PATROL;
+      this.alertTarget = null;
+      
+      if (DEBUG_MODE) {
+        console.log(`⚡ Shock-bot hit by EMP (${this.empHits}/${SHOCK_EMP_HITS_TO_KILL}). Entering dazed state for 2 seconds.`);
+      }
+    }
+  }
+  
+  /**
+   * Kills the shock-bot (called after 4 EMP hits)
+   * Phase 4.3: EMP Gun Effect
+   * - Fades out over 1 second
+   * - Light removed (debug visuals destroyed)
+   */
+  private killWithEMP(): void {
+    if (this.state === RobotState.DEAD) {
+      return; // Already dead
+    }
+    
+    if (DEBUG_MODE) {
+      console.log(`⚡ Shock-bot killed by EMP gun after ${this.empHits} hits! Fading out at (${this.x.toFixed(0)}, ${this.y.toFixed(0)})`);
+    }
+    
+    // Set state to dead immediately
+    this.state = RobotState.DEAD;
+    
+    // Stop all movement and attacks
+    this.body.setVelocity(0, 0);
+    this.isCharging = false;
+    this.isShocking = false;
+    this.isDazed = false; // Clear dazed state
+    this.chargeTimer = 0;
+    this.shockTimer = 0;
+    this.dazedTimer = 0;
+    
+    // Clear attack visuals
+    this.clearAttackVisuals();
+    
+    // Destroy debug visuals (light cone, etc.)
+    this.destroyDebugVisuals();
+    
+    // Start fade out animation
+    this.isFadingOut = true;
+    this.fadeOutTimer = 0;
+    
+    // Clear alert target
+    this.alertTarget = null;
+  }
+  
+  /**
+   * Gets the number of EMP hits this shock-bot has received
+   */
+  getEMPHits(): number {
+    return this.empHits;
   }
 
   /**

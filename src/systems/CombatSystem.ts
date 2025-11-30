@@ -3,6 +3,7 @@ import { Player } from '../entities/Player';
 import { Weapon } from '../entities/Weapon';
 import { Robot } from '../entities/Robot';
 import { SpiderBot } from '../entities/SpiderBot';
+import { ShockBot } from '../entities/ShockBot';
 import { WeaponType, RobotType, RobotState, Vector2 } from '../types';
 import { WEAPON_RANGE, WEAPON_AIM_ARC, GOO_GUN_COLOR, EMP_GUN_COLOR, WATER_GUN_COLOR } from '../config/constants';
 import { distance, isPointInCone, hasLineOfSight } from '../utils/geometry';
@@ -309,14 +310,15 @@ export class CombatSystem {
   /**
    * Applies weapon effect to a target robot
    * Phase 4.2: Goo Gun Effect
+   * Phase 4.3: EMP Gun Effect
    */
   private applyWeaponEffect(weaponType: WeaponType, target: Robot): void {
     if (weaponType === WeaponType.GOO_GUN && target instanceof SpiderBot) {
       // Goo Gun hits Spider-Bot: reduce speed by 33% per hit
       this.applyGooEffect(target);
-    } else if (weaponType === WeaponType.EMP_GUN && target.robotType === RobotType.SHOCK_BOT) {
-      // EMP Gun hits Shock-Bot: instant kill (Phase 4.3 - not implemented yet)
-      // TODO: Implement in Phase 4.3
+    } else if (weaponType === WeaponType.EMP_GUN && target instanceof ShockBot) {
+      // EMP Gun hits Shock-Bot: instant kill
+      this.applyEMPEffect(target);
     } else if (weaponType === WeaponType.WATER_GUN && target.robotType === RobotType.FLAME_BOT) {
       // Water Gun hits Flame-Bot: disable (Phase 4.4 - not implemented yet)
       // TODO: Implement in Phase 4.4
@@ -332,6 +334,17 @@ export class CombatSystem {
    */
   private applyGooEffect(spiderBot: SpiderBot): void {
     spiderBot.applyGooHit();
+  }
+
+  /**
+   * Applies EMP gun effect to a shock-bot
+   * Phase 4.3: EMP Gun Effect
+   * - Each hit causes 2 second dazed state
+   * - After 4 hits: shock-bot dies and fades out
+   * - Light removed when dead (area becomes darker)
+   */
+  private applyEMPEffect(shockBot: ShockBot): void {
+    shockBot.applyEMPHit();
   }
 }
 

@@ -20,7 +20,7 @@ export const Level1: LevelData = {
   exitPosition: { x: 8, y: 8 },
   robots: [
     {
-      type: RobotType.SPIDER_BOT,
+      type: RobotType.SHOCK_BOT,
       position: { x: 5, y: 2 }
     }
   ],
