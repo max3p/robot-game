@@ -947,7 +947,17 @@ export class GameScene extends Phaser.Scene {
       ? allLevels[currentLevelIndex + 1]
       : undefined; // No next level (all levels complete)
 
-    // Prepare level complete data
+    // Special handling for level 4 (tutorial complete) - go directly to victory screen
+    if (this.levelData.id === 4) {
+      // Skip LevelCompleteScene and go directly to VictoryScene with tutorial complete message
+      this.scene.start('VictoryScene', { isTutorialComplete: true });
+      if (DEBUG_MODE) {
+        console.log(`🎉 Tutorial Complete: ${this.levelData.name}`);
+      }
+      return;
+    }
+
+    // Prepare level complete data for other levels
     const levelCompleteData: LevelCompleteData = {
       levelData: this.levelData,
       nextLevelData: nextLevel,

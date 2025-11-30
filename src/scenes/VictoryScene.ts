@@ -5,10 +5,17 @@ import { TEXT_STYLE_TITLE, TEXT_STYLE_SUBTITLE, TEXT_STYLE_BUTTON, OVERLAY_ALPHA
 
 /**
  * Victory Scene - Shown when all levels are completed
+ * Can also be shown for tutorial completion
  */
 export class VictoryScene extends Phaser.Scene {
+  private isTutorialComplete: boolean = false;
+
   constructor() {
     super({ key: 'VictoryScene' });
+  }
+
+  init(data?: { isTutorialComplete?: boolean }) {
+    this.isTutorialComplete = data?.isTutorialComplete || false;
   }
 
   create(): void {
@@ -23,31 +30,43 @@ export class VictoryScene extends Phaser.Scene {
     // Background overlay
     createOverlay(this, OVERLAY_ALPHA);
 
-    // Victory title
-    this.add.text(centerX, centerY - 100, 'VICTORY!', {
-      ...TEXT_STYLE_TITLE,
-      color: '#FFD700',
-      fontSize: '72px'
-    }).setOrigin(0.5, 0.5);
+    // Show different message based on whether it's tutorial complete or full victory
+    if (this.isTutorialComplete) {
+      // Tutorial complete message
+      this.add.text(centerX, centerY - 50, 'TUTORIAL COMPLETE!', {
+        ...TEXT_STYLE_TITLE,
+        color: '#00FF00',
+        fontSize: '64px'
+      }).setOrigin(0.5, 0.5);
+    } else {
+      // Full victory message
+      this.add.text(centerX, centerY - 100, 'VICTORY!', {
+        ...TEXT_STYLE_TITLE,
+        color: '#FFD700',
+        fontSize: '72px'
+      }).setOrigin(0.5, 0.5);
 
-    // Congratulations message
-    this.add.text(centerX, centerY - 20, 'Congratulations!', {
-      ...TEXT_STYLE_SUBTITLE,
-      color: '#FFFFFF',
-      fontSize: '36px'
-    }).setOrigin(0.5, 0.5);
+      // Congratulations message
+      this.add.text(centerX, centerY - 20, 'Congratulations!', {
+        ...TEXT_STYLE_SUBTITLE,
+        color: '#FFFFFF',
+        fontSize: '36px'
+      }).setOrigin(0.5, 0.5);
 
-    this.add.text(centerX, centerY + 20, 'You have completed all levels!', {
-      ...TEXT_STYLE_SUBTITLE,
-      color: '#FFFFFF',
-      fontSize: '24px'
-    }).setOrigin(0.5, 0.5);
+      this.add.text(centerX, centerY + 20, 'You have completed all levels!', {
+        ...TEXT_STYLE_SUBTITLE,
+        color: '#FFFFFF',
+        fontSize: '24px'
+      }).setOrigin(0.5, 0.5);
+    }
 
-    // Main Menu button
+    // Main Menu button (positioned differently based on content)
+    const buttonY = this.isTutorialComplete ? centerY + 80 : centerY + 120;
+    
     createInteractiveButton(
       this,
       centerX,
-      centerY + 120,
+      buttonY,
       'MAIN MENU',
       {
         ...TEXT_STYLE_BUTTON,
@@ -60,7 +79,11 @@ export class VictoryScene extends Phaser.Scene {
       }
     );
 
-    console.log('🏆 Victory! All levels completed!');
+    if (this.isTutorialComplete) {
+      console.log('🎓 Tutorial Complete!');
+    } else {
+      console.log('🏆 Victory! All levels completed!');
+    }
   }
 }
 
