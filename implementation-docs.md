@@ -1190,12 +1190,6 @@ Ground items spawn within 3 tiles of start position.
    - Cry lasts 3 seconds
    - After cry ends: calm meter resets to 50
 
-2. **Game Over - Baby Killed**
-   - If robot touches baby while on ground: game over
-   - Display GameOverScene
-   - Show "Baby was found!" message
-   - Option to retry level
-
 3. **Game Over - Baby Holder Downed**
    - If baby holder reaches 0 health: game over
    - Display GameOverScene
@@ -1217,7 +1211,6 @@ Ground items spawn within 3 tiles of start position.
 #### Phase 5 Acceptance Criteria:
 - [ ] Baby cries when meter depletes or holder hit
 - [ ] All robots converge when baby cries
-- [ ] Game over when baby killed on ground
 - [ ] Game over when baby holder downed
 - [ ] Level complete when baby reaches exit
 - [ ] Scene transitions work correctly
