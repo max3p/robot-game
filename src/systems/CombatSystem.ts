@@ -6,6 +6,7 @@ import { SpiderBot } from '../entities/SpiderBot';
 import { WeaponType, RobotType, RobotState, Vector2 } from '../types';
 import { WEAPON_RANGE, WEAPON_AIM_ARC, GOO_GUN_COLOR, EMP_GUN_COLOR, WATER_GUN_COLOR } from '../config/constants';
 import { distance, isPointInCone, hasLineOfSight } from '../utils/geometry';
+import { DetectionSystem } from './DetectionSystem';
 
 /**
  * CombatSystem handles auto-shooting for players holding weapons
@@ -19,6 +20,7 @@ export class CombatSystem {
   private tileSize: number = 0;
   private levelOffsetX: number = 0;
   private levelOffsetY: number = 0;
+  private detectionSystem: DetectionSystem | null = null;
   
   // Visual effects for shots
   private shotEffects: Array<{
@@ -34,6 +36,13 @@ export class CombatSystem {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+  }
+  
+  /**
+   * Sets the detection system for sound detection
+   */
+  setDetectionSystem(detectionSystem: DetectionSystem): void {
+    this.detectionSystem = detectionSystem;
   }
 
   /**
@@ -171,6 +180,11 @@ export class CombatSystem {
 
     // Create visual effect (brief line/flash from player to target)
     this.createShotEffect(player, target, weapon.weaponType);
+
+    // Trigger sound detection - robots hear the shot
+    if (this.detectionSystem) {
+      this.detectionSystem.handleSoundDetection({ x: player.x, y: player.y });
+    }
 
     // Apply weapon effect to target
     this.applyWeaponEffect(weapon.weaponType, target);

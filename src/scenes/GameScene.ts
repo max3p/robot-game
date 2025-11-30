@@ -340,6 +340,8 @@ export class GameScene extends Phaser.Scene {
       this.levelOffsetX,
       this.levelOffsetY
     );
+    // Connect detection system for sound detection
+    this.combatSystem.setDetectionSystem(this.detectionSystem);
     // Robots will be set after they're spawned
   }
   

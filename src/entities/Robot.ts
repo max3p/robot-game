@@ -64,6 +64,9 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   private currentVelocity: Vector2 = { x: 0, y: 0 }; // Current velocity for smooth acceleration
   private targetVelocity: Vector2 = { x: 0, y: 0 }; // Target velocity to accelerate toward
   
+  // Investigation state (for sound detection)
+  public investigateTimer: number = 0; // Timer for investigation duration
+  
   // Debug logging state (throttled to avoid spam)
   private lastDebugLogTime: number = 0;
   private debugLogThrottleMs: number = 1000; // Log movement updates at most once per second
@@ -183,8 +186,20 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       this.pathRecalculationCooldown -= delta;
     }
     
+    // Update investigation timer
+    if (this.investigateTimer > 0) {
+      this.investigateTimer -= delta;
+      if (this.investigateTimer <= 0 && this.state === RobotState.INVESTIGATING) {
+        // Investigation complete, return to patrol
+        this.state = RobotState.PATROL;
+        this.alertTarget = null;
+        this.body.setVelocity(0, 0);
+        this.startRepositioning();
+      }
+    }
+    
     // State-based behavior is handled by subclasses
-    // Base class only handles patrol for generic robots
+    // Base class only handles patrol and investigating for generic robots
     if (this.state === RobotState.PATROL) {
       // If repositioning, handle that first
       if (this.isRepositioning) {
@@ -195,6 +210,10 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       }
       // Apply smooth movement with acceleration/deceleration only during patrol
       this.applySmoothMovement(delta);
+    } else if (this.state === RobotState.INVESTIGATING) {
+      // Investigating state: move toward sound source
+      this.updateInvestigating(delta);
+      // Note: updateInvestigating directly sets velocity, so we don't call applySmoothMovement
     }
     // Note: For ALERT and ATTACKING states, subclasses (like SpiderBot) directly set velocity
   }
@@ -229,6 +248,49 @@ export class Robot extends Phaser.GameObjects.Rectangle {
    */
   updateAttacking(delta: number, players: any[]): void {
     // Base implementation - to be overridden by subclasses
+  }
+
+  /**
+   * Updates investigating behavior: robot moves toward sound source
+   * @param delta Time delta in milliseconds
+   */
+  protected updateInvestigating(delta: number): void {
+    if (!this.alertTarget) {
+      // No target, return to patrol
+      this.state = RobotState.PATROL;
+      this.body.setVelocity(0, 0);
+      this.startRepositioning();
+      return;
+    }
+
+    // Calculate distance to investigation target
+    const dx = this.alertTarget.x - this.x;
+    const dy = this.alertTarget.y - this.y;
+    const distanceToTarget = Math.sqrt(dx * dx + dy * dy);
+
+    // If we've reached the target or timer expired, return to patrol
+    if (distanceToTarget < 20 || this.investigateTimer <= 0) {
+      this.state = RobotState.PATROL;
+      this.alertTarget = null;
+      this.body.setVelocity(0, 0);
+      this.startRepositioning();
+      return;
+    }
+
+    // Move toward investigation target
+    const direction = normalize({ x: dx, y: dy });
+    this.facingDirection = direction;
+    
+    // Use pathfinding to move toward target
+    const pathFound = this.calculatePathToTarget(this.alertTarget);
+    
+    if (pathFound) {
+      // Follow the path
+      this.followPath(delta, this.speed);
+    } else {
+      // No path found - move directly toward target
+      this.body.setVelocity(direction.x * this.speed, direction.y * this.speed);
+    }
   }
   
   /**

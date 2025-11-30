@@ -1,8 +1,8 @@
 import { Robot } from '../entities/Robot';
 import { Player } from '../entities/Player';
 import { Vector2, RobotState } from '../types';
-import { distance, vectorToAngle, normalizeAngle, hasLineOfSight } from '../utils/geometry';
-import { ROBOT_CLOSE_RANGE_DETECTION_RADIUS } from '../config/constants';
+import { distance, vectorToAngle, normalizeAngle, hasLineOfSight, normalize } from '../utils/geometry';
+import { ROBOT_CLOSE_RANGE_DETECTION_RADIUS, SHOOTING_SOUND_RADIUS, SOUND_INVESTIGATION_DURATION, DEBUG_MODE } from '../config/constants';
 
 /**
  * DetectionSystem handles robot detection of players
@@ -48,18 +48,19 @@ export class DetectionSystem {
    */
   update() {
     for (const robot of this.robots) {
-      // Only check detection if robot is in PATROL state
-      // (ALERT state will be handled by alert behavior, not detection)
-      if (robot.state !== RobotState.PATROL) {
+      // Check detection if robot is in PATROL or INVESTIGATING state
+      // (ALERT/ATTACKING states will be handled by their respective behaviors)
+      if (robot.state !== RobotState.PATROL && robot.state !== RobotState.INVESTIGATING) {
         continue;
       }
 
       // Check each player
       for (const player of this.players) {
         if (this.isPlayerDetected(robot, player)) {
-          // Player detected! Enter ALERT state
+          // Player detected! Enter ALERT state (overrides INVESTIGATING)
           robot.state = RobotState.ALERT;
           robot.alertTarget = { x: player.x, y: player.y };
+          robot.investigateTimer = 0; // Clear investigation timer
           
           console.log(`🚨 Robot detected player ${player.playerId}! Entering ALERT state.`);
           break; // Only alert on first detection
@@ -151,6 +152,53 @@ export class DetectionSystem {
     // Log detection details (always log detections, no throttling)
     console.log(`[Detection] ✅ Player ${player.playerId} DETECTED via vision cone! (distance: ${distanceToPlayer.toFixed(0)}px, angle: ${(angleDifference * 180 / Math.PI).toFixed(1)}°)`);
     return true;
+  }
+
+  /**
+   * Handles sound detection when a player shoots
+   * Robots within sound radius turn toward the sound and investigate
+   * @param shooterPosition Position where the shot was fired from
+   */
+  handleSoundDetection(shooterPosition: Vector2): void {
+    for (const robot of this.robots) {
+      // Skip dead robots
+      if (robot.state === RobotState.DEAD) {
+        continue;
+      }
+
+      // Calculate distance to sound source
+      const distanceToSound = distance(
+        { x: robot.x, y: robot.y },
+        shooterPosition
+      );
+
+      // Check if robot is within sound radius
+      if (distanceToSound <= SHOOTING_SOUND_RADIUS) {
+        // Robot hears the sound!
+        // Turn toward the sound source
+        const directionToSound = {
+          x: shooterPosition.x - robot.x,
+          y: shooterPosition.y - robot.y
+        };
+        robot.facingDirection = normalize(directionToSound);
+
+        // If robot is in PATROL state, enter INVESTIGATING state
+        if (robot.state === RobotState.PATROL) {
+          robot.state = RobotState.INVESTIGATING;
+          robot.alertTarget = { x: shooterPosition.x, y: shooterPosition.y };
+          robot.investigateTimer = SOUND_INVESTIGATION_DURATION;
+
+          if (DEBUG_MODE) {
+            console.log(`🔊 Robot ${robot.robotType} heard shooting sound! Investigating at (${shooterPosition.x.toFixed(0)}, ${shooterPosition.y.toFixed(0)})`);
+          }
+        } else if (robot.state === RobotState.INVESTIGATING) {
+          // If already investigating, update target to new sound location
+          robot.alertTarget = { x: shooterPosition.x, y: shooterPosition.y };
+          robot.investigateTimer = SOUND_INVESTIGATION_DURATION; // Reset timer
+        }
+        // Note: If robot is already in ALERT or ATTACKING state, don't interrupt
+      }
+    }
   }
 
   /**

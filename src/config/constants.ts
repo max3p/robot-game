@@ -93,6 +93,8 @@ export const ROBOT_ACCELERATION = 400; // pixels per second squared
 export const ROBOT_DECELERATION = 600; // pixels per second squared
 export const ROBOT_CHASE_ABANDON_DISTANCE = 3 * TILE_SIZE; // Distance in pixels (3 tiles) at which robot gives up chasing and returns to patrol
 export const ROBOT_CLOSE_RANGE_DETECTION_RADIUS = 80; // pixels - robots detect players within this radius regardless of facing direction
+export const SHOOTING_SOUND_RADIUS = 200; // pixels - robots detect shooting sounds within this radius
+export const SOUND_INVESTIGATION_DURATION = 2000; // milliseconds - robots investigate for 2 seconds after hearing a sound
 
 // Weapons
 export const WEAPON_RANGE = 150; // pixels
