@@ -22,11 +22,6 @@ export class MenuScene extends Phaser.Scene {
     super({ key: 'MenuScene' });
   }
 
-  preload() {
-    // Load the cover image
-    this.load.image('tabula-cover', '/tabula-cover.png');
-  }
-
   create() {
     // Stop UIScene if it's still running (from GameScene)
     if (this.scene.isActive('UIScene')) {
