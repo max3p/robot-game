@@ -43,16 +43,19 @@ export const SWAP_PROGRESS_BAR_HEIGHT = 4;
 export const SWAP_PROGRESS_BAR_OFFSET_Y = -30; // Offset above players during swap
 export const PUSH_VELOCITY_THRESHOLD = 10; // Velocity difference to determine who's pushing
 
-// Robot (placeholder values for testing - full constants in Phase 3.7)
+// Robot constants
 export const SPIDER_SPEED = 90; // pixels per second (patrol speed, cut in half from 180)
 export const SPIDER_SIZE = 24; // pixels
 export const SPIDER_COLOR = 0xFF69B4; // Pink
 export const SPIDER_LIGHT_RADIUS = 120; // pixels
 export const SPIDER_LIGHT_ANGLE = 60; // degrees (total cone angle)
 export const SPIDER_LIGHT_COLOR = 0xFF69B4; // Pink
-export const SPIDER_ATTACK_RANGE = 25; // pixels (melee)
+export const SPIDER_ATTACK_RANGE = 60; // pixels (melee)
 export const SPIDER_ATTACK_COOLDOWN = 1000; // milliseconds
 export const SPIDER_ATTACK_DAMAGE = 1;
+export const SPIDER_LEAP_SPEED = 600; // pixels per second (leap speed toward player)
+export const SPIDER_LEAP_DISTANCE = 80; // pixels (fixed distance to leap toward player)
+export const SPIDER_RECUPERATION_DURATION = 500; // milliseconds (pause time after leap before chasing again)
 
 // Shock-Bot constants
 export const SHOCK_SPEED = 60; // pixels per second (patrol speed, cut in half from 120)

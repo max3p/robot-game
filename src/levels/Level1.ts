@@ -20,19 +20,8 @@ export const Level1: LevelData = {
   exitPosition: { x: 8, y: 8 },
   robots: [
     {
-      type: RobotType.SPIDER_BOT,
-      position: { x: 5, y: 2 },
-      patrolPath: [] // Legacy - not used (robots use random walk AI)
-    },
-    {
-      type: RobotType.SHOCK_BOT,
-      position: { x: 4, y: 4 },
-      patrolPath: [] // Legacy - not used (robots use random walk AI)
-    },
-    {
       type: RobotType.FLAME_BOT,
-      position: { x: 7, y: 5 },
-      patrolPath: [] // Legacy - not used (robots use random walk AI)
+      position: { x: 5, y: 2 }
     }
   ],
   groundItems: [

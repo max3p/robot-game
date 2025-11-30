@@ -14,7 +14,7 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   public size: number;
   public color: number;
   
-  // Properties for future phases (not used in Phase 3.1)
+  // Robot properties
   public health: number = 1;
   public lightRadius: number = 0;
   public lightAngle: number = 0;

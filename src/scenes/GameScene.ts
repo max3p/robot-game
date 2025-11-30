@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';

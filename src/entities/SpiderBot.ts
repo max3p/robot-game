@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
+import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, SPIDER_LEAP_SPEED, SPIDER_LEAP_DISTANCE, SPIDER_RECUPERATION_DURATION, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -11,6 +11,14 @@ import Phaser from 'phaser';
  */
 export class SpiderBot extends Robot {
   private attackTargetPlayer: Player | null = null;
+  
+  // Leaping attack state
+  private attackPhase: 'READY' | 'LEAPING' | 'RECUPERATING' = 'READY';
+  private recuperationTimer: number = 0;
+  private leapTargetPosition: Vector2 | null = null; // Target position to leap to (player's position when leap started)
+  private leapDirection: Vector2 | null = null; // Direction of the leap
+  private leapDistanceTraveled: number = 0; // Distance traveled during leap
+  private hasHitPlayer: boolean = false; // Track if we've hit the player during this leap
 
   /**
    * Creates a new SpiderBot instance
@@ -46,6 +54,10 @@ export class SpiderBot extends Robot {
     this.attackRange = SPIDER_ATTACK_RANGE;
     this.attackCooldown = SPIDER_ATTACK_COOLDOWN;
     this.attackTimer = 0;
+    
+    // Initialize attack phase state
+    this.attackPhase = 'READY';
+    this.recuperationTimer = 0;
   }
 
   /**
@@ -157,7 +169,7 @@ export class SpiderBot extends Robot {
   }
 
   /**
-   * Updates attacking behavior: deal damage on contact (melee)
+   * Updates attacking behavior: leaping attack with recuperation pause
    * @param delta Time delta in milliseconds
    * @param players Array of players in the scene
    */
@@ -166,31 +178,166 @@ export class SpiderBot extends Robot {
       // Target lost, return to alert state
       this.state = RobotState.ALERT;
       this.attackTargetPlayer = null;
+      this.resetAttackPhase();
       return;
     }
 
-    // Check if still in range
+    // Check if still in range (only check during READY phase, not during leap)
     const distanceToTarget = distance({ x: this.x, y: this.y }, { x: this.attackTargetPlayer.x, y: this.attackTargetPlayer.y });
     
-    if (distanceToTarget > this.attackRange) {
+    if (this.attackPhase === 'READY' && distanceToTarget > this.attackRange * 1.5) {
       // Out of range, resume chase
       this.state = RobotState.ALERT;
       this.attackTargetPlayer = null;
+      this.resetAttackPhase();
       return;
     }
 
+    // Handle different attack phases
+    switch (this.attackPhase) {
+      case 'READY':
+        this.handleReadyPhase(delta);
+        break;
+      case 'LEAPING':
+        this.handleLeapingPhase(delta, players);
+        break;
+      case 'RECUPERATING':
+        this.handleRecuperatingPhase(delta);
+        break;
+    }
+  }
+  
+  /**
+   * Handles the ready phase - prepares for leap attack
+   */
+  private handleReadyPhase(delta: number): void {
+    if (!this.attackTargetPlayer) return;
+    
     // Face the target
     const direction: Vector2 = {
       x: this.attackTargetPlayer.x - this.x,
       y: this.attackTargetPlayer.y - this.y
     };
     this.facingDirection = normalize(direction);
-
-    // Attack if cooldown is ready
+    
+    // Check if cooldown is ready and we're in range
     if (this.attackTimer <= 0) {
-      this.performAttack(this.attackTargetPlayer);
-      this.attackTimer = this.attackCooldown;
+      const distanceToTarget = distance({ x: this.x, y: this.y }, { x: this.attackTargetPlayer.x, y: this.attackTargetPlayer.y });
+      
+      if (distanceToTarget <= this.attackRange * 1.5) {
+        // Start leap attack
+        this.startLeap();
+      }
     }
+  }
+  
+  /**
+   * Starts the leap attack - leaps a fixed distance toward the player
+   */
+  private startLeap(): void {
+    if (!this.attackTargetPlayer) return;
+    
+    this.attackPhase = 'LEAPING';
+    this.hasHitPlayer = false;
+    this.leapDistanceTraveled = 0;
+    
+    // Store target position (player's position when leap starts)
+    this.leapTargetPosition = { x: this.attackTargetPlayer.x, y: this.attackTargetPlayer.y };
+    
+    // Calculate direction toward player
+    const direction: Vector2 = {
+      x: this.leapTargetPosition.x - this.x,
+      y: this.leapTargetPosition.y - this.y
+    };
+    this.leapDirection = normalize(direction);
+    this.facingDirection = this.leapDirection;
+    
+    // Reset attack timer (will be set after recuperation)
+    this.attackTimer = 0;
+  }
+  
+  /**
+   * Handles the leaping phase - robot leaps a fixed distance toward player
+   */
+  private handleLeapingPhase(delta: number, players: Player[]): void {
+    if (!this.leapDirection || !this.attackTargetPlayer) {
+      this.resetAttackPhase();
+      return;
+    }
+    
+    // Calculate distance moved this frame
+    const distanceThisFrame = (SPIDER_LEAP_SPEED * delta) / 1000; // Convert to pixels
+    const newDistanceTraveled = this.leapDistanceTraveled + distanceThisFrame;
+    
+    // Check if we've reached the leap distance
+    if (newDistanceTraveled >= SPIDER_LEAP_DISTANCE) {
+      // Leap complete - move to exact leap distance
+      const remainingDistance = SPIDER_LEAP_DISTANCE - this.leapDistanceTraveled;
+      const finalX = this.x + (this.leapDirection.x * remainingDistance);
+      const finalY = this.y + (this.leapDirection.y * remainingDistance);
+      this.x = finalX;
+      this.y = finalY;
+      
+      // Start recuperation phase (pause after leap)
+      this.attackPhase = 'RECUPERATING';
+      this.recuperationTimer = SPIDER_RECUPERATION_DURATION;
+      this.body.setVelocity(0, 0); // Stop moving
+    } else {
+      // Continue leaping toward player
+      this.leapDistanceTraveled = newDistanceTraveled;
+      this.body.setVelocity(
+        this.leapDirection.x * SPIDER_LEAP_SPEED,
+        this.leapDirection.y * SPIDER_LEAP_SPEED
+      );
+      
+      // Check for collision with player during leap
+      if (!this.hasHitPlayer) {
+        const distanceToPlayer = distance({ x: this.x, y: this.y }, { x: this.attackTargetPlayer.x, y: this.attackTargetPlayer.y });
+        
+        // Check if we're close enough to hit (within robot size + player size)
+        if (distanceToPlayer <= (this.size / 2 + 20)) {
+          this.performAttack(this.attackTargetPlayer);
+          this.hasHitPlayer = true;
+        }
+      }
+    }
+  }
+  
+  /**
+   * Handles the recuperating phase - robot pauses before chasing again
+   */
+  private handleRecuperatingPhase(delta: number): void {
+    this.recuperationTimer -= delta;
+    
+    if (this.recuperationTimer <= 0) {
+      // Recuperation complete, return to alert state to chase again
+      this.attackTimer = this.attackCooldown; // Set cooldown for next attack
+      this.state = RobotState.ALERT;
+      this.resetAttackPhase();
+    } else {
+      // Still recuperating - stay still and face the target
+      this.body.setVelocity(0, 0);
+      if (this.attackTargetPlayer) {
+        const direction: Vector2 = {
+          x: this.attackTargetPlayer.x - this.x,
+          y: this.attackTargetPlayer.y - this.y
+        };
+        this.facingDirection = normalize(direction);
+      }
+    }
+  }
+  
+  /**
+   * Resets attack phase state
+   */
+  private resetAttackPhase(): void {
+    this.attackPhase = 'READY';
+    this.recuperationTimer = 0;
+    this.leapTargetPosition = null;
+    this.leapDirection = null;
+    this.leapDistanceTraveled = 0;
+    this.hasHitPlayer = false;
+    this.body.setVelocity(0, 0);
   }
 
   /**

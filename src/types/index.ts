@@ -17,7 +17,6 @@ export interface LevelData {
 export interface RobotSpawn {
   type: RobotType;
   position: Vector2; // tile coordinates
-  patrolPath: Vector2[]; // tile coordinates
 }
 
 export interface ItemSpawn {
