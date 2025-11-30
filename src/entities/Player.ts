@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE, WEAPON_RANGE, DEBUG_MODE } from '../config/constants';
+import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE, WEAPON_RANGE, DEBUG_MODE, MAX_PLAYER_HEARTS, INVINCIBILITY_DURATION, PLAYER_FLASH_DURATION } from '../config/constants';
 import { PLAYER_CONTROLS } from '../config/controls';
 import { Baby } from './Baby';
 import { Weapon } from './Weapon';
@@ -17,6 +17,13 @@ export class Player extends Phaser.GameObjects.Arc {
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
   };
+  
+  // Health system
+  public hearts: number = MAX_PLAYER_HEARTS;
+  public isInvincible: boolean = false;
+  private invincibilityTimer: number = 0;
+  private flashTimer: number = 0;
+  private isFlashing: boolean = false;
   
   // Debug visual for weapon range (only created if DEBUG_MODE is enabled)
   private weaponRangeCircle?: Phaser.GameObjects.Graphics;
@@ -121,7 +128,27 @@ export class Player extends Phaser.GameObjects.Arc {
     }
   }
 
-  update() {
+  update(delta?: number) {
+    // Update invincibility timer
+    if (this.isInvincible && delta !== undefined) {
+      this.invincibilityTimer -= delta;
+      if (this.invincibilityTimer <= 0) {
+        this.isInvincible = false;
+        this.invincibilityTimer = 0;
+        this.setAlpha(1); // Restore full opacity
+        this.isFlashing = false;
+      } else {
+        // Update flashing effect
+        this.flashTimer -= delta;
+        if (this.flashTimer <= 0) {
+          this.isFlashing = !this.isFlashing;
+          this.flashTimer = PLAYER_FLASH_DURATION;
+          // Toggle visibility during flash
+          this.setAlpha(this.isFlashing ? 0.3 : 1);
+        }
+      }
+    }
+    
     // Get movement input
     const moveX = (this.movementKeys.right.isDown ? 1 : 0) - (this.movementKeys.left.isDown ? 1 : 0);
     const moveY = (this.movementKeys.down.isDown ? 1 : 0) - (this.movementKeys.up.isDown ? 1 : 0);
@@ -212,6 +239,47 @@ export class Player extends Phaser.GameObjects.Arc {
    */
   getHeldItem(): Baby | Weapon | null {
     return this.heldBaby || this.heldWeapon || null;
+  }
+
+  /**
+   * Takes damage from a robot attack
+   * @param damage Amount of damage to take (default 1)
+   * @returns true if damage was applied, false if invincible
+   */
+  takeDamage(damage: number = 1): boolean {
+    // Don't take damage if invincible
+    if (this.isInvincible) {
+      return false;
+    }
+
+    // Reduce hearts
+    this.hearts = Math.max(0, this.hearts - damage);
+    
+    if (DEBUG_MODE) {
+      console.log(`💔 Player ${this.playerId} took ${damage} damage. Hearts remaining: ${this.hearts}/${MAX_PLAYER_HEARTS}`);
+    }
+
+    // Apply invincibility
+    this.isInvincible = true;
+    this.invincibilityTimer = INVINCIBILITY_DURATION;
+    this.flashTimer = PLAYER_FLASH_DURATION;
+    this.isFlashing = true;
+    this.setAlpha(0.3); // Start with reduced opacity
+
+    // TODO (Phase 4): Trigger baby cry if player is baby holder
+    if (this.heldBaby) {
+      // Baby will cry when implemented
+    }
+
+    return true;
+  }
+
+  /**
+   * Checks if the player is dead (no hearts remaining)
+   * @returns true if player has no hearts
+   */
+  isDead(): boolean {
+    return this.hearts <= 0;
   }
 }
 

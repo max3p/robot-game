@@ -416,14 +416,10 @@ export class SpiderBot extends Robot {
    * @param player The player to attack
    */
   private performAttack(player: Player): void {
-    // Phase 3.4: Basic attack implementation
-    // Full damage system will be implemented in Phase 4
     console.log(`🕷️ Spider-bot attacks player ${player.playerId}!`);
     
-    // TODO (Phase 4): Deal damage to player
-    // - Reduce player health by SPIDER_ATTACK_DAMAGE
-    // - Apply invincibility period
-    // - Trigger baby cry if player is baby holder
+    // Deal damage to player
+    player.takeDamage(SPIDER_ATTACK_DAMAGE);
   }
 }
 

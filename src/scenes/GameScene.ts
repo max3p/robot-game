@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, MAX_PLAYER_HEARTS, PLAYER_COLORS } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -26,6 +26,7 @@ export class GameScene extends Phaser.Scene {
   private detectionSystem!: DetectionSystem;
   private combatSystem!: CombatSystem;
   private lanterns: Lantern[] = [];
+  private heartsUI!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -55,13 +56,16 @@ export class GameScene extends Phaser.Scene {
     // Set up collisions between robots and walls
     this.physics.add.collider(this.robots, this.walls, this.handleRobotWallCollision.bind(this));
     
+    // Create hearts UI
+    this.createHeartsUI();
+    
     console.log(`✨ Game scene initialized and ready!`);
   }
 
   update(time: number, delta: number) {
     // Update all players (apply input and movement)
     this.players.forEach(player => {
-      player.update();
+      player.update(delta);
     });
     
     // Constrain ALL players to bounds (including pushed players)
@@ -100,6 +104,9 @@ export class GameScene extends Phaser.Scene {
     
     // Update combat system (handles auto-shooting)
     this.combatSystem.update(delta);
+    
+    // Update hearts UI
+    this.updateHeartsUI();
   }
 
   private renderLevel() {
@@ -567,6 +574,104 @@ export class GameScene extends Phaser.Scene {
     
     if (needsCorrection) {
       player.setPosition(newX, newY);
+    }
+  }
+
+  /**
+   * Creates the hearts UI display at the top of the screen
+   */
+  private createHeartsUI(): void {
+    this.heartsUI = this.add.graphics();
+    this.heartsUI.setDepth(100); // Above everything
+    this.updateHeartsUI();
+  }
+
+  /**
+   * Updates the hearts UI to reflect current player health
+   */
+  private updateHeartsUI(): void {
+    if (!this.heartsUI) {
+      return;
+    }
+
+    this.heartsUI.clear();
+
+    const HEART_SIZE = 20; // Size of each heart
+    const HEART_SPACING = 5; // Space between hearts
+    const PLAYER_SPACING = 30; // Space between player groups
+    const MARGIN_TOP = 20; // Top margin
+    const MARGIN_LEFT = 20; // Left margin
+
+    // Draw hearts for each player
+    this.players.forEach((player, playerIndex) => {
+      const playerColor = PLAYER_COLORS[player.playerId - 1];
+      const startX = MARGIN_LEFT + playerIndex * (MAX_PLAYER_HEARTS * (HEART_SIZE + HEART_SPACING) + PLAYER_SPACING);
+      const startY = MARGIN_TOP;
+
+      // Draw hearts (filled for remaining, outline for lost)
+      for (let i = 0; i < MAX_PLAYER_HEARTS; i++) {
+        const heartX = startX + i * (HEART_SIZE + HEART_SPACING);
+        const heartY = startY;
+        const hasHeart = i < player.hearts;
+
+        if (hasHeart) {
+          // Draw filled heart
+          this.drawHeart(this.heartsUI, heartX, heartY, HEART_SIZE, playerColor, true);
+        } else {
+          // Draw outline heart (gray)
+          this.drawHeart(this.heartsUI, heartX, heartY, HEART_SIZE, 0x666666, false);
+        }
+      }
+    });
+  }
+
+  /**
+   * Draws a heart shape
+   * @param graphics Graphics object to draw on
+   * @param x X position (center)
+   * @param y Y position (center)
+   * @param size Size of the heart
+   * @param color Color of the heart
+   * @param filled Whether to fill the heart or just draw outline
+   */
+  private drawHeart(graphics: Phaser.GameObjects.Graphics, x: number, y: number, size: number, color: number, filled: boolean): void {
+    const halfSize = size / 2;
+    const radius = halfSize * 0.5;
+
+    // Heart shape: two circles on top, triangle on bottom
+    // Left circle center
+    const leftCircleX = x - halfSize * 0.5;
+    const leftCircleY = y - halfSize * 0.3;
+    
+    // Right circle center
+    const rightCircleX = x + halfSize * 0.5;
+    const rightCircleY = y - halfSize * 0.3;
+    
+    // Triangle point (bottom of heart)
+    const pointX = x;
+    const pointY = y + halfSize * 0.5;
+
+    if (filled) {
+      // Draw filled heart
+      graphics.fillStyle(color, 1);
+      graphics.fillCircle(leftCircleX, leftCircleY, radius);
+      graphics.fillCircle(rightCircleX, rightCircleY, radius);
+      graphics.fillTriangle(
+        leftCircleX - radius, leftCircleY,
+        rightCircleX + radius, rightCircleY,
+        pointX, pointY
+      );
+    } else {
+      // Draw outline heart (gray)
+      graphics.lineStyle(2, color, 1);
+      graphics.strokeCircle(leftCircleX, leftCircleY, radius);
+      graphics.strokeCircle(rightCircleX, rightCircleY, radius);
+      graphics.beginPath();
+      graphics.moveTo(leftCircleX - radius, leftCircleY);
+      graphics.lineTo(rightCircleX + radius, rightCircleY);
+      graphics.lineTo(pointX, pointY);
+      graphics.closePath();
+      graphics.strokePath();
     }
   }
 }

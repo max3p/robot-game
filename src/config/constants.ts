@@ -111,6 +111,11 @@ export const SHOCK_EMP_HITS_TO_KILL = 4; // Number of EMP hits to kill shock-bot
 export const SHOCK_EMP_DAZED_DURATION = 2000; // milliseconds - 2 seconds dazed state after EMP hit
 export const WRONG_WEAPON_CONFUSION_DURATION = 500; // milliseconds - 0.5 seconds confused state
 
+// Player Health
+export const MAX_PLAYER_HEARTS = 3; // Maximum number of hearts
+export const INVINCIBILITY_DURATION = 1000; // milliseconds - 1 second invincibility after damage
+export const PLAYER_FLASH_DURATION = 100; // milliseconds - duration of each flash cycle
+
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging
 

@@ -25,6 +25,9 @@ export class ShockBot extends Robot {
   
   private readonly SHOCK_DURATION = 250; // milliseconds
   
+  // Track players hit in current shock attack (to prevent multiple hits per shock)
+  private shockedPlayers: Set<Player> = new Set();
+  
   // EMP hit tracking (Phase 4.3)
   private empHits: number = 0; // Number of EMP hits received
   private isDazed: boolean = false; // True when in dazed state after EMP hit
@@ -435,6 +438,7 @@ export class ShockBot extends Robot {
         this.shockTimer = this.SHOCK_DURATION;
         this.attackTimer = this.attackCooldown;
         this.body.setVelocity(0, 0); // Stay still during shock
+        this.shockedPlayers.clear(); // Clear hit tracking for new shock
         this.createShockVisual();
       }
       return;
@@ -464,16 +468,18 @@ export class ShockBot extends Robot {
       const playerDistance = distance({ x: this.x, y: this.y }, { x: player.x, y: player.y });
       
       // Check if player is within the current expanding shock radius
-      if (playerDistance <= currentShockRadius) {
+      // Only deal damage once per shock attack
+      if (playerDistance <= currentShockRadius && !this.shockedPlayers.has(player)) {
         // Player hit by shock!
         if (DEBUG_MODE) {
           console.log(`⚡ Shock-bot hits player ${player.playerId}! (${playerDistance.toFixed(1)}px from center)`);
         }
         
-        // TODO (Phase 4): Deal damage to player
-        // - Deal SHOCK_ATTACK_DAMAGE to player
-        // - Apply invincibility period
-        // - Trigger baby cry if player is baby holder
+        // Deal damage to player
+        player.takeDamage(SHOCK_ATTACK_DAMAGE);
+        
+        // Mark player as hit for this shock
+        this.shockedPlayers.add(player);
       }
     }
   }

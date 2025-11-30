@@ -399,10 +399,8 @@ export class FlameBot extends Robot {
           // Update last damage time
           this.playerLastDamageTime.set(player, currentTime);
           
-          // TODO (Phase 4): Deal damage to player
-          // - Deal FLAME_ATTACK_DAMAGE to player
-          // - Apply invincibility period
-          // - Trigger baby cry if player is baby holder
+          // Deal damage to player
+          player.takeDamage(FLAME_ATTACK_DAMAGE);
         }
       } else {
         // Player left the flame cone - remove from damage tracking
