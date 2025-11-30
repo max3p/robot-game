@@ -49,7 +49,7 @@ export class DetectionSystem {
   update() {
     for (const robot of this.robots) {
       // Check detection if robot is in PATROL or INVESTIGATING state
-      // (ALERT/ATTACKING states will be handled by their respective behaviors)
+      // (ALERT/ATTACKING/DISABLED states will be handled by their respective behaviors)
       if (robot.state !== RobotState.PATROL && robot.state !== RobotState.INVESTIGATING) {
         continue;
       }

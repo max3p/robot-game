@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { FLAME_SPEED, FLAME_SIZE, FLAME_COLOR, FLAME_ATTACK_RANGE, FLAME_ATTACK_COOLDOWN, FLAME_ATTACK_DAMAGE, FLAME_ATTACK_CONE_ANGLE, FLAME_ATTACK_CONE_LENGTH, FLAME_EXPAND_DURATION, FLAME_DAMAGE_INTERVAL, FLAME_CHASE_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
+import { FLAME_SPEED, FLAME_SIZE, FLAME_COLOR, FLAME_ATTACK_RANGE, FLAME_ATTACK_COOLDOWN, FLAME_ATTACK_DAMAGE, FLAME_ATTACK_CONE_ANGLE, FLAME_ATTACK_CONE_LENGTH, FLAME_EXPAND_DURATION, FLAME_DAMAGE_INTERVAL, FLAME_CHASE_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, FLAME_DISABLE_DURATION, FLAME_REIGNITE_TIME } from '../config/constants';
 import { distance, normalize, isPointInCone } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -21,6 +21,11 @@ export class FlameBot extends Robot {
   
   // Track last damage time for each player (for continuous damage)
   private playerLastDamageTime: Map<Player, number> = new Map();
+  
+  // Water gun disable effect (Phase 4.4)
+  private disableTimer: number = 0; // Timer for disabled state
+  private reigniteTimer: number = 0; // Timer for reigniting state
+  private lightFlickerTimer: number = 0; // Timer for light flickering effect
 
   /**
    * Creates a new FlameBot instance
@@ -56,6 +61,11 @@ export class FlameBot extends Robot {
     this.attackRange = FLAME_ATTACK_RANGE;
     this.attackCooldown = FLAME_ATTACK_COOLDOWN;
     this.attackTimer = 0;
+    
+    // Initialize disable/reignite timers
+    this.disableTimer = 0;
+    this.reigniteTimer = 0;
+    this.lightFlickerTimer = 0;
   }
 
   /**
@@ -70,11 +80,20 @@ export class FlameBot extends Robot {
       this.flameExpandTimer -= delta;
     }
 
+    // Update disable/reignite timers (Phase 4.4)
+    if (this.state === RobotState.DISABLED || this.reigniteTimer > 0) {
+      this.updateDisabledState(delta);
+      // During disabled/reigniting, skip normal updates
+      // Only update visuals
+      this.updateFlameVisual();
+      return;
+    }
+
     // Call parent update for basic behavior (patrol, visuals, attack timer)
     super.update(delta);
 
     // Handle state-specific behavior (requires players array)
-    if (players) {
+    if (players && this.state !== RobotState.DISABLED) {
       if (this.state === RobotState.ALERT) {
         this.updateAlert(delta, players);
       } else if (this.state === RobotState.ATTACKING) {
@@ -84,6 +103,110 @@ export class FlameBot extends Robot {
 
     // Update visuals
     this.updateFlameVisual();
+    
+    // Update light flickering effect during disabled state
+    if (this.state === RobotState.DISABLED) {
+      this.updateLightFlicker(delta);
+    }
+  }
+  
+  /**
+   * Updates disabled state behavior (handles both disabled and reigniting phases)
+   * Phase 4.4: Water Gun Effect
+   */
+  private updateDisabledState(delta: number): void {
+    // Stop all movement and attacks
+    this.body.setVelocity(0, 0);
+    this.clearFlameVisual();
+    
+    // Update disable timer (first 4 seconds)
+    if (this.disableTimer > 0) {
+      this.disableTimer -= delta;
+      
+      if (this.disableTimer <= 0) {
+        // Disable duration complete, begin reigniting
+        this.reigniteTimer = FLAME_REIGNITE_TIME;
+        this.disableTimer = 0;
+        // Keep state as DISABLED during reigniting phase
+        
+        if (DEBUG_MODE) {
+          console.log(`🔥 Flame-bot beginning reignite process (2 seconds)`);
+        }
+      }
+    }
+    // Update reignite timer if in reigniting phase (next 2 seconds)
+    else if (this.reigniteTimer > 0) {
+      this.reigniteTimer -= delta;
+      
+      if (this.reigniteTimer <= 0) {
+        // Reignite complete, return to patrol
+        this.reigniteTimer = 0;
+        this.state = RobotState.PATROL;
+        this.alertTarget = null;
+        
+        if (DEBUG_MODE) {
+          console.log(`🔥 Flame-bot fully reignited! Resuming patrol.`);
+        }
+      }
+    }
+  }
+  
+  
+  /**
+   * Updates light flickering effect during disabled state
+   * Phase 4.4: Light flickers/dims during disabled
+   */
+  private updateLightFlicker(delta: number): void {
+    this.lightFlickerTimer += delta;
+    
+    // Flicker every 100ms (10 times per second)
+    const flickerRate = 100;
+    const flickerPhase = (this.lightFlickerTimer % (flickerRate * 2)) / flickerRate;
+    
+    // Dim the light (reduce intensity) and flicker
+    // During disabled: light is dimmed and flickers
+    // We can't directly control the light intensity in the current system,
+    // but we can update the debug visuals to show flickering
+    // The actual light system integration will happen in Phase 3.2
+    
+    // For now, we'll just track the flicker state
+    // When lighting system is implemented, this will control light intensity
+  }
+  
+  /**
+   * Applies water gun effect to flame-bot
+   * Phase 4.4: Water Gun Effect
+   * - Enters DISABLED state
+   * - Light flickers/dims during disabled
+   * - After 4 seconds: begin reignite
+   * - After 2 more seconds: fully reignited, resume patrol
+   * - If already disabled/reigniting: resets timers (extends disable duration)
+   */
+  applyWaterHit(): void {
+    if (DEBUG_MODE) {
+      if (this.state === RobotState.DISABLED || this.reigniteTimer > 0) {
+        console.log(`💧 Flame-bot hit by water gun again! Resetting disable/reignite timers.`);
+      } else {
+        console.log(`💧 Flame-bot hit by water gun! Entering DISABLED state for 4 seconds.`);
+      }
+    }
+    
+    // Enter disabled state (or reset if already disabled)
+    this.state = RobotState.DISABLED;
+    this.disableTimer = FLAME_DISABLE_DURATION; // Reset to full 4 seconds
+    this.reigniteTimer = 0; // Cancel any reigniting in progress
+    this.lightFlickerTimer = 0;
+    
+    // Stop all movement and attacks
+    this.body.setVelocity(0, 0);
+    this.clearFlameVisual();
+    this.attackTargetPlayer = null;
+    this.alertTarget = null;
+    
+    // Clear any attack timers
+    this.attackTimer = 0;
+    this.flameExpandTimer = 0;
+    this.isFlameExpanding = false;
   }
 
   /**

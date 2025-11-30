@@ -1124,14 +1124,14 @@ Ground items spawn within 3 tiles of start position.
    - Lantern: permanent pink point light at death position
 
 3. **EMP Gun Effect**
-   - Hits shock-bot: instant kill
+   - Hits shock-bot: dazes bot for 2 seconds, removed 25% of health
    - Shock-bot fades out
    - Light removed (area becomes darker)
 
 4. **Water Gun Effect**
    - Hits flame-bot: enter DISABLED state
    - Light flickers/dims during disabled
-   - After 4 seconds: begin reignite
+   - After 2 seconds: begin reignite
    - After 2 more seconds: fully reignited, resume patrol
 
 5. **Wrong Weapon Effect**

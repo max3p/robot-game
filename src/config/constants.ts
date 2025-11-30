@@ -86,6 +86,8 @@ export const FLAME_ATTACK_CONE_LENGTH = 140; // pixels (flame cone length)
 export const FLAME_EXPAND_DURATION = 300; // milliseconds (time for flame to expand to full size)
 export const FLAME_DAMAGE_INTERVAL = 1000; // milliseconds (damage dealt every second)
 export const FLAME_CHASE_SPEED_MULTIPLIER = 0.6; // Flame-bot moves 60% of player speed when chasing (slower for easier evasion)
+export const FLAME_DISABLE_DURATION = 4000; // milliseconds - 4 seconds disabled state
+export const FLAME_REIGNITE_TIME = 2000; // milliseconds - 2 seconds reigniting state
 
 // Detection and AI
 export const ALERT_SPEED_MULTIPLIER = 0.85; // Robots move 85% of player speed when chasing (slower than player)

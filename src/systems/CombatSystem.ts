@@ -4,6 +4,7 @@ import { Weapon } from '../entities/Weapon';
 import { Robot } from '../entities/Robot';
 import { SpiderBot } from '../entities/SpiderBot';
 import { ShockBot } from '../entities/ShockBot';
+import { FlameBot } from '../entities/FlameBot';
 import { WeaponType, RobotType, RobotState, Vector2 } from '../types';
 import { WEAPON_RANGE, WEAPON_AIM_ARC, GOO_GUN_COLOR, EMP_GUN_COLOR, WATER_GUN_COLOR } from '../config/constants';
 import { distance, isPointInCone, hasLineOfSight } from '../utils/geometry';
@@ -122,8 +123,8 @@ export class CombatSystem {
     const aimArcRad = (WEAPON_AIM_ARC * Math.PI) / 180;
 
     for (const robot of this.robots) {
-      // Skip dead robots
-      if (robot.state === RobotState.DEAD) {
+      // Skip dead or disabled robots
+      if (robot.state === RobotState.DEAD || robot.state === RobotState.DISABLED) {
         continue;
       }
 
@@ -311,17 +312,18 @@ export class CombatSystem {
    * Applies weapon effect to a target robot
    * Phase 4.2: Goo Gun Effect
    * Phase 4.3: EMP Gun Effect
+   * Phase 4.4: Water Gun Effect
    */
   private applyWeaponEffect(weaponType: WeaponType, target: Robot): void {
     if (weaponType === WeaponType.GOO_GUN && target instanceof SpiderBot) {
       // Goo Gun hits Spider-Bot: reduce speed by 33% per hit
       this.applyGooEffect(target);
     } else if (weaponType === WeaponType.EMP_GUN && target instanceof ShockBot) {
-      // EMP Gun hits Shock-Bot: instant kill
+      // EMP Gun hits Shock-Bot: 4 hits to kill with dazed state
       this.applyEMPEffect(target);
-    } else if (weaponType === WeaponType.WATER_GUN && target.robotType === RobotType.FLAME_BOT) {
-      // Water Gun hits Flame-Bot: disable (Phase 4.4 - not implemented yet)
-      // TODO: Implement in Phase 4.4
+    } else if (weaponType === WeaponType.WATER_GUN && target instanceof FlameBot) {
+      // Water Gun hits Flame-Bot: disable temporarily
+      this.applyWaterEffect(target);
     } else {
       // Wrong weapon type - confusion effect (Phase 4.5 - not implemented yet)
       // TODO: Implement in Phase 4.5
@@ -345,6 +347,18 @@ export class CombatSystem {
    */
   private applyEMPEffect(shockBot: ShockBot): void {
     shockBot.applyEMPHit();
+  }
+
+  /**
+   * Applies water gun effect to a flame-bot
+   * Phase 4.4: Water Gun Effect
+   * - Enters DISABLED state
+   * - Light flickers/dims during disabled
+   * - After 4 seconds: begin reignite
+   * - After 2 more seconds: fully reignited, resume patrol
+   */
+  private applyWaterEffect(flameBot: FlameBot): void {
+    flameBot.applyWaterHit();
   }
 }
 
