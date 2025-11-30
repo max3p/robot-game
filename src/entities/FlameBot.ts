@@ -93,10 +93,12 @@ export class FlameBot extends Robot {
     super.update(delta);
 
     // Handle state-specific behavior (requires players array)
-    if (players && this.state !== RobotState.DISABLED) {
-      if (this.state === RobotState.ALERT) {
+    // Type assertion needed because TypeScript narrows the state type, but DISABLED is valid for FlameBot
+    const currentState = this.state as RobotState;
+    if (players && currentState !== RobotState.DISABLED) {
+      if (currentState === RobotState.ALERT) {
         this.updateAlert(delta, players);
-      } else if (this.state === RobotState.ATTACKING) {
+      } else if (currentState === RobotState.ATTACKING) {
         this.updateAttacking(delta, players);
       }
     }
@@ -105,7 +107,7 @@ export class FlameBot extends Robot {
     this.updateFlameVisual();
     
     // Update light flickering effect during disabled state
-    if (this.state === RobotState.DISABLED) {
+    if (currentState === RobotState.DISABLED) {
       this.updateLightFlicker(delta);
     }
   }

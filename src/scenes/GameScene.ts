@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, DEBUG_MODE } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, DEBUG_MODE } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -95,17 +95,17 @@ export class GameScene extends Phaser.Scene {
     this.events.on('baby-cried', this.handleBabyCry.bind(this));
     
     // Set up collisions between players and walls
-    this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
+    this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision);
     
     // Set up collisions between players (they can push each other)
-    this.physics.add.collider(this.players, this.players, this.handlePlayerPlayerCollision.bind(this));
+    this.physics.add.collider(this.players, this.players, this.handlePlayerPlayerCollision);
     
     // Set up collisions between robots and walls
-    this.physics.add.collider(this.robots, this.walls, this.handleRobotWallCollision.bind(this));
+    this.physics.add.collider(this.robots, this.walls, this.handleRobotWallCollision);
     
     // Set up collision between players and exit zone (Phase 5.4)
     // This is set up after players are spawned, so players array is populated
-    this.physics.add.overlap(this.players, this.exitZone, this.handleExitZoneOverlap.bind(this));
+    this.physics.add.overlap(this.players, this.exitZone, this.handleExitZoneOverlap);
     
     // Create hearts UI
     this.createHeartsUI();
@@ -604,7 +604,7 @@ export class GameScene extends Phaser.Scene {
    * Handles collision between a robot and a wall
    * Stops robot velocity to prevent going through walls
    */
-  private handleRobotWallCollision(robotObj: Phaser.GameObjects.GameObject, wallObj: Phaser.GameObjects.GameObject) {
+  private handleRobotWallCollision = (robotObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile, wallObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile) => {
     const robot = robotObj as Robot;
     if (robot.body.touching.left || robot.body.touching.right) {
       robot.body.setVelocityX(0);
@@ -628,7 +628,7 @@ export class GameScene extends Phaser.Scene {
    * Handles collision between a player and a wall
    * Stops player velocity to prevent being pushed through walls
    */
-  private handlePlayerWallCollision(playerObj: Phaser.GameObjects.GameObject, wallObj: Phaser.GameObjects.GameObject) {
+  private handlePlayerWallCollision = (playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile, wallObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile) => {
     const player = playerObj as Player;
     if (player.body.touching.left || player.body.touching.right) {
       player.body.setVelocityX(0);
@@ -642,7 +642,7 @@ export class GameScene extends Phaser.Scene {
    * Handles collision between two players
    * Tracks pushing relationships for speed reduction and clamps excessive velocities
    */
-  private handlePlayerPlayerCollision(player1Obj: Phaser.GameObjects.GameObject, player2Obj: Phaser.GameObjects.GameObject) {
+  private handlePlayerPlayerCollision = (player1Obj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile, player2Obj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile) => {
     const player1 = player1Obj as Player;
     const player2 = player2Obj as Player;
     
@@ -766,10 +766,10 @@ export class GameScene extends Phaser.Scene {
    * @param playerObj The player that overlapped with exit zone
    * @param exitZoneObj The exit zone rectangle (unused, but required by Phaser overlap callback)
    */
-  private handleExitZoneOverlap(
-    playerObj: Phaser.GameObjects.GameObject,
-    exitZoneObj: Phaser.GameObjects.GameObject
-  ): void {
+  private handleExitZoneOverlap = (
+    playerObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile,
+    exitZoneObj: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile
+  ): void => {
     if (this.isLevelComplete || this.isGameOver) {
       return; // Already triggered or game over
     }
@@ -823,7 +823,7 @@ export class GameScene extends Phaser.Scene {
     if (this.players) {
       this.players.forEach(player => {
         if (player && player.active) {
-          player.destroy(true);
+          player.destroy();
         }
       });
     }
@@ -833,7 +833,7 @@ export class GameScene extends Phaser.Scene {
     if (this.robots) {
       this.robots.forEach(robot => {
         if (robot && robot.active) {
-          robot.destroy(true);
+          robot.destroy();
         }
       });
     }
@@ -841,7 +841,7 @@ export class GameScene extends Phaser.Scene {
 
     // Destroy baby
     if (this.baby && this.baby.active) {
-      this.baby.destroy(true);
+      this.baby.destroy();
     }
     this.baby = undefined as any;
 

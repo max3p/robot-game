@@ -5,7 +5,7 @@ import { Baby } from './Baby';
 import { Weapon } from './Weapon';
 
 export class Player extends Phaser.GameObjects.Arc {
-  public body!: Phaser.Physics.Arcade.Body;
+  declare public body: Phaser.Physics.Arcade.Body;
   public playerId: number;
   public heldBaby: Baby | null = null;
   public heldWeapon: Weapon | null = null;
