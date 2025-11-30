@@ -25,6 +25,9 @@ export class Player extends Phaser.GameObjects.Arc {
   private flashTimer: number = 0;
   private isFlashing: boolean = false;
   
+  // Downed state (Phase 4.8)
+  public isDowned: boolean = false;
+  
   // Debug visual for weapon range (only created if DEBUG_MODE is enabled)
   private weaponRangeCircle?: Phaser.GameObjects.Graphics;
 
@@ -129,13 +132,22 @@ export class Player extends Phaser.GameObjects.Arc {
   }
 
   update(delta?: number) {
+    // If downed, stop all movement and return early
+    if (this.isDowned) {
+      this.body.setVelocity(0, 0);
+      return;
+    }
+    
     // Update invincibility timer
     if (this.isInvincible && delta !== undefined) {
       this.invincibilityTimer -= delta;
       if (this.invincibilityTimer <= 0) {
         this.isInvincible = false;
         this.invincibilityTimer = 0;
-        this.setAlpha(1); // Restore full opacity
+        // Only restore full opacity if not downed
+        if (!this.isDowned) {
+          this.setAlpha(1);
+        }
         this.isFlashing = false;
       } else {
         // Update flashing effect
@@ -143,8 +155,10 @@ export class Player extends Phaser.GameObjects.Arc {
         if (this.flashTimer <= 0) {
           this.isFlashing = !this.isFlashing;
           this.flashTimer = PLAYER_FLASH_DURATION;
-          // Toggle visibility during flash
-          this.setAlpha(this.isFlashing ? 0.3 : 1);
+          // Toggle visibility during flash (but respect downed state opacity)
+          if (!this.isDowned) {
+            this.setAlpha(this.isFlashing ? 0.3 : 1);
+          }
         }
       }
     }
@@ -247,8 +261,8 @@ export class Player extends Phaser.GameObjects.Arc {
    * @returns true if damage was applied, false if invincible
    */
   takeDamage(damage: number = 1): boolean {
-    // Don't take damage if invincible
-    if (this.isInvincible) {
+    // Don't take damage if invincible or already downed
+    if (this.isInvincible || this.isDowned) {
       return false;
     }
 
@@ -259,6 +273,12 @@ export class Player extends Phaser.GameObjects.Arc {
       console.log(`💔 Player ${this.playerId} took ${damage} damage. Hearts remaining: ${this.hearts}/${MAX_PLAYER_HEARTS}`);
     }
 
+    // Check if player should enter downed state (Phase 4.8)
+    if (this.hearts <= 0) {
+      this.enterDownedState();
+      return true;
+    }
+
     // Apply invincibility
     this.isInvincible = true;
     this.invincibilityTimer = INVINCIBILITY_DURATION;
@@ -266,12 +286,73 @@ export class Player extends Phaser.GameObjects.Arc {
     this.isFlashing = true;
     this.setAlpha(0.3); // Start with reduced opacity
 
-    // TODO (Phase 4): Trigger baby cry if player is baby holder
+    // Trigger baby cry if player is baby holder (Phase 4.7)
     if (this.heldBaby) {
-      // Baby will cry when implemented
+      // Emit baby-cried event with baby's current location
+      this.scene.events.emit('baby-cried', {
+        x: this.heldBaby.x,
+        y: this.heldBaby.y
+      });
+      
+      if (DEBUG_MODE) {
+        console.log(`😭 Baby cried! Player ${this.playerId} took damage while holding baby.`);
+      }
     }
 
     return true;
+  }
+
+  /**
+   * Enters the downed state (Phase 4.8)
+   * Player cannot move, is rendered at 50% opacity, and drops their held item
+   */
+  private enterDownedState(): void {
+    if (this.isDowned) {
+      return; // Already downed
+    }
+
+    this.isDowned = true;
+    this.isInvincible = false; // Clear invincibility
+    this.invincibilityTimer = 0;
+    this.isFlashing = false;
+    
+    // Set opacity to 50%
+    this.setAlpha(0.5);
+    
+    // Stop movement
+    this.body.setVelocity(0, 0);
+    
+    // Drop held item to ground at player's position
+    const dropX = this.x;
+    const dropY = this.y;
+    
+    if (this.heldBaby) {
+      const baby = this.heldBaby;
+      this.setHeldBaby(null);
+      baby.placeOnGround(dropX, dropY);
+      
+      // Emit event so GameScene can add baby to SwapSystem's ground items
+      this.scene.events.emit('item-dropped', { item: baby });
+      
+      if (DEBUG_MODE) {
+        console.log(`💀 Player ${this.playerId} downed! Baby dropped at (${dropX.toFixed(0)}, ${dropY.toFixed(0)})`);
+      }
+    } else if (this.heldWeapon) {
+      const weapon = this.heldWeapon;
+      this.setHeldWeapon(null);
+      weapon.placeOnGround(dropX, dropY);
+      
+      // Emit event so GameScene can add weapon to SwapSystem's ground items
+      this.scene.events.emit('item-dropped', { item: weapon });
+      
+      if (DEBUG_MODE) {
+        console.log(`💀 Player ${this.playerId} downed! Weapon dropped at (${dropX.toFixed(0)}, ${dropY.toFixed(0)})`);
+      }
+    }
+    
+    if (DEBUG_MODE) {
+      console.log(`💀 Player ${this.playerId} entered DOWNED state`);
+    }
   }
 
   /**

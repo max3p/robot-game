@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Level1 } from '../levels/Level1';
-import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, MAX_PLAYER_HEARTS, PLAYER_COLORS } from '../config/constants';
+import { WALL_COLOR, FLOOR_COLOR, EXIT_COLOR, GAME_WIDTH, GAME_HEIGHT, TILE_SIZE, PLAYER_RADIUS, MAX_PUSH_VELOCITY, PUSH_VELOCITY_THRESHOLD, MAX_PLAYER_HEARTS, PLAYER_COLORS, DEBUG_MODE } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -12,7 +12,7 @@ import { SwapSystem } from '../systems/SwapSystem';
 import { DetectionSystem } from '../systems/DetectionSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { Lantern } from '../entities/Lantern';
-import { RobotSpawn, WeaponType, RobotType } from '../types';
+import { RobotSpawn, WeaponType, RobotType, RobotState } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private levelData = Level1;
@@ -46,6 +46,12 @@ export class GameScene extends Phaser.Scene {
     
     // Listen for spider-bot death events to create lanterns
     this.events.on('spider-bot-died', this.handleSpiderBotDeath.bind(this));
+    
+    // Listen for baby cry events to alert all robots (Phase 4.7)
+    this.events.on('baby-cried', this.handleBabyCry.bind(this));
+    
+    // Listen for item dropped events (Phase 4.8: Downed State)
+    this.events.on('item-dropped', this.handleItemDropped.bind(this));
     
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
@@ -360,6 +366,42 @@ export class GameScene extends Phaser.Scene {
     const lantern = new Lantern(this, data.x, data.y);
     this.lanterns.push(lantern);
     console.log(`💡 Lantern created at (${data.x.toFixed(0)}, ${data.y.toFixed(0)})`);
+  }
+
+  /**
+   * Handles baby cry event - alerts all robots to baby's location
+   * Phase 4.7: Baby Holder Damage
+   */
+  private handleBabyCry(data: { x: number; y: number }): void {
+    // Alert all robots to the baby's location
+    let alertedCount = 0;
+    for (const robot of this.robots) {
+      // Check robot state before alerting
+      const previousState = robot.state;
+      robot.alertToLocation({ x: data.x, y: data.y });
+      
+      // Count if robot was successfully alerted (state changed to ALERT)
+      if (robot.state === RobotState.ALERT) {
+        alertedCount++;
+      }
+      
+      if (DEBUG_MODE && previousState !== robot.state) {
+        console.log(`[Robot ${robot.robotType}] State changed from ${previousState} to ${robot.state} due to baby cry`);
+      }
+    }
+    
+    if (DEBUG_MODE) {
+      console.log(`😭 Baby cried! ${alertedCount}/${this.robots.length} robots alerted to location (${data.x.toFixed(0)}, ${data.y.toFixed(0)})`);
+    }
+  }
+
+  /**
+   * Handles item dropped event - adds item to SwapSystem's ground items
+   * Phase 4.8: Downed State
+   */
+  private handleItemDropped(data: { item: Baby | Weapon }): void {
+    // Add the dropped item to SwapSystem's ground items tracking
+    this.swapSystem.addGroundItem(data.item);
   }
 
   /**

@@ -43,6 +43,10 @@ export const SWAP_PROGRESS_BAR_HEIGHT = 4;
 export const SWAP_PROGRESS_BAR_OFFSET_Y = -30; // Offset above players during swap
 export const PUSH_VELOCITY_THRESHOLD = 10; // Velocity difference to determine who's pushing
 
+// Revival (Phase 4.9)
+export const REVIVE_DURATION = 3000; // 3 seconds in milliseconds
+export const REVIVE_PROGRESS_BAR_COLOR = 0x00FFFF; // Cyan color for revival progress bar
+
 // Robot constants
 export const SPIDER_SPEED = 90; // pixels per second (patrol speed, cut in half from 180)
 export const SPIDER_SIZE = 24; // pixels
@@ -115,6 +119,9 @@ export const WRONG_WEAPON_CONFUSION_DURATION = 500; // milliseconds - 0.5 second
 export const MAX_PLAYER_HEARTS = 3; // Maximum number of hearts
 export const INVINCIBILITY_DURATION = 1000; // milliseconds - 1 second invincibility after damage
 export const PLAYER_FLASH_DURATION = 100; // milliseconds - duration of each flash cycle
+
+// Baby Cry
+export const BABY_CRY_ALERT_DURATION = 5000; // milliseconds - 5 seconds robots are alerted to baby location
 
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging

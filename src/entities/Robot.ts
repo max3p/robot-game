@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS, WRONG_WEAPON_CONFUSION_DURATION } from '../config/constants';
+import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS, WRONG_WEAPON_CONFUSION_DURATION, BABY_CRY_ALERT_DURATION } from '../config/constants';
 import { findPath, pathToWorldCoordinates } from '../utils/pathfinding';
 import { distance, normalize } from '../utils/geometry';
 
@@ -66,6 +66,10 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   
   // Investigation state (for sound detection)
   public investigateTimer: number = 0; // Timer for investigation duration
+  
+  // Baby cry alert state (Phase 4.7)
+  private babyCryAlertTimer: number = 0; // Timer for baby cry alert duration
+  private babyCryTarget: Vector2 | null = null; // Target location from baby cry
   
   // Confusion state (for wrong weapon hits) - Phase 4.5
   private confusionTimer: number = 0; // Timer for confusion duration
@@ -204,6 +208,35 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       }
     }
     
+    // Update baby cry alert timer (Phase 4.7)
+    if (this.babyCryAlertTimer > 0) {
+      this.babyCryAlertTimer -= delta;
+      if (this.babyCryAlertTimer <= 0) {
+        // Baby cry alert expired
+        this.babyCryAlertTimer = 0;
+        
+        // If we were alerted by baby cry and still have the target, return to patrol
+        // Note: DetectionSystem.update() will check for players and may keep us in ALERT
+        if (this.babyCryTarget) {
+          // Clear baby cry target
+          this.babyCryTarget = null;
+          
+          // Only return to patrol if we're still in ALERT state (not already attacking)
+          // DetectionSystem will check for players and may transition us back to ALERT
+          if (this.state === RobotState.ALERT) {
+            this.state = RobotState.PATROL;
+            this.alertTarget = null;
+            this.body.setVelocity(0, 0);
+            this.startRepositioning();
+            
+            if (DEBUG_MODE) {
+              console.log(`[Robot ${this.robotType}] Baby cry alert expired. Returning to patrol.`);
+            }
+          }
+        }
+      }
+    }
+    
     // Update confusion timer and shake effect (Phase 4.5)
     if (this.isConfused) {
       this.updateConfusion(delta);
@@ -320,6 +353,46 @@ export class Robot extends Phaser.GameObjects.Rectangle {
    */
   updateAlert(delta: number, players: any[]): void {
     // Base implementation - to be overridden by subclasses
+  }
+
+  /**
+   * Alerts the robot to a specific location (Phase 4.7)
+   * Called when baby cries - alerts robot to baby's location for 5 seconds
+   * @param targetLocation The location to alert to
+   */
+  alertToLocation(targetLocation: Vector2): void {
+    // Don't alert if dead or disabled
+    if (this.state === RobotState.DEAD || this.state === RobotState.DISABLED) {
+      if (DEBUG_MODE) {
+        console.log(`[Robot ${this.robotType}] Cannot alert - state is ${this.state}`);
+      }
+      return;
+    }
+    
+    // Set baby cry alert state
+    this.babyCryTarget = { x: targetLocation.x, y: targetLocation.y };
+    this.babyCryAlertTimer = BABY_CRY_ALERT_DURATION;
+    
+    // Enter ALERT state and set target
+    this.state = RobotState.ALERT;
+    this.alertTarget = { x: targetLocation.x, y: targetLocation.y };
+    
+    // Clear any existing investigation
+    this.investigateTimer = 0;
+    
+    // Clear confusion if active (baby cry overrides confusion)
+    if (this.isConfused) {
+      this.isConfused = false;
+      this.confusionTimer = 0;
+      this.shakeOffset = { x: 0, y: 0 };
+    }
+    
+    // Clear chase path to recalculate
+    this.clearChasePath();
+    
+    if (DEBUG_MODE) {
+      console.log(`[Robot ${this.robotType}] Alerted to baby cry location (${targetLocation.x.toFixed(0)}, ${targetLocation.y.toFixed(0)})`);
+    }
   }
   
   /**
@@ -615,10 +688,7 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     }
     
     this.behaviorTimer = this.behaviorDuration;
-    
-    if (DEBUG_MODE && this.shouldLogDebug()) {
-      console.log(`[Robot ${this.robotType}] New behavior: ${selectedBehavior} (${(this.behaviorDuration / 1000).toFixed(1)}s)`);
-    }
+  
   }
   
   /**
@@ -636,10 +706,6 @@ export class Robot extends Phaser.GameObjects.Rectangle {
         return;
       }
       
-      if (DEBUG_MODE && this.shouldLogDebug()) {
-        const newTile = this.worldToTileCoordinates(this.currentTargetTile.x, this.currentTargetTile.y);
-        console.log(`[Robot ${this.robotType}] Moving: Tile (${currentTile.x},${currentTile.y}) → (${newTile.x},${newTile.y})`);
-      }
     }
     
     // Check if we've reached the target tile
@@ -653,10 +719,7 @@ export class Robot extends Phaser.GameObjects.Rectangle {
         const reachedTile = this.worldToTileCoordinates(this.x, this.y);
         this.addTileToMemory(reachedTile);
         this.currentTargetTile = null;
-        
-        if (DEBUG_MODE && this.shouldLogDebug()) {
-          console.log(`[Robot ${this.robotType}] Reached tile (${reachedTile.x},${reachedTile.y})`);
-        }
+
       } else {
         // Calculate direction and set target velocity for smooth movement
         const directionX = dx / distance;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GROUND_ITEM_PICKUP_RADIUS, PLAYER_SWAP_DURATION, PLAYER_OVERLAP_RADIUS, STATIONARY_VELOCITY_THRESHOLD, DEBUG_MODE, SWAP_PROGRESS_BAR_WIDTH, SWAP_PROGRESS_BAR_HEIGHT, SWAP_PROGRESS_BAR_OFFSET_Y } from '../config/constants';
+import { GROUND_ITEM_PICKUP_RADIUS, PLAYER_SWAP_DURATION, PLAYER_OVERLAP_RADIUS, STATIONARY_VELOCITY_THRESHOLD, DEBUG_MODE, SWAP_PROGRESS_BAR_WIDTH, SWAP_PROGRESS_BAR_HEIGHT, SWAP_PROGRESS_BAR_OFFSET_Y, REVIVE_DURATION, REVIVE_PROGRESS_BAR_COLOR } from '../config/constants';
 import { Player } from '../entities/Player';
 import { Baby } from '../entities/Baby';
 import { Weapon } from '../entities/Weapon';
@@ -11,11 +11,19 @@ interface PlayerSwapState {
   progressBar?: Phaser.GameObjects.Graphics;
 }
 
+interface PlayerRevivalState {
+  revivingPlayer: Player; // The player doing the reviving
+  downedPlayer: Player; // The player being revived
+  timer: number;
+  progressBar?: Phaser.GameObjects.Graphics;
+}
+
 export class SwapSystem {
   private scene: Phaser.Scene;
   private players: Player[] = [];
   private groundItems: (Baby | Weapon)[] = [];
   private activePlayerSwap: PlayerSwapState | null = null;
+  private activeRevival: PlayerRevivalState | null = null; // Phase 4.9: Revival state
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -53,7 +61,7 @@ export class SwapSystem {
   }
 
   /**
-   * Updates the swap system, checking for ground item pickups and player-to-player swaps
+   * Updates the swap system, checking for ground item pickups, player-to-player swaps, and revivals
    * @param delta Time elapsed since last frame in milliseconds
    */
   update(delta: number) {
@@ -66,8 +74,13 @@ export class SwapSystem {
       });
     });
 
-    // Check for player-to-player swaps
-    this.updatePlayerToPlayerSwap(delta);
+    // Check for revivals first (Phase 4.9) - takes priority over swaps
+    this.updateRevival(delta);
+    
+    // Only check for player-to-player swaps if no revival is active
+    if (!this.activeRevival) {
+      this.updatePlayerToPlayerSwap(delta);
+    }
   }
 
   private updatePlayerToPlayerSwap(delta: number) {
@@ -300,6 +313,179 @@ export class SwapSystem {
     } else if (groundItem instanceof Weapon) {
       player.setHeldWeapon(groundItem);
       console.log(`📥 Player ${player.playerId} picked up ${groundItemType} from ground`);
+    }
+  }
+
+  /**
+   * Updates revival system (Phase 4.9)
+   * Checks if a player is reviving a downed player
+   */
+  private updateRevival(delta: number) {
+    // Check if there's an active revival in progress
+    if (this.activeRevival) {
+      const revival = this.activeRevival;
+      
+      // Check if players are still overlapping and stationary
+      if (this.arePlayersOverlapping(revival.revivingPlayer, revival.downedPlayer) && 
+          this.arePlayersStationary(revival.revivingPlayer, revival.downedPlayer) &&
+          revival.downedPlayer.isDowned) {
+        
+        // Update timer
+        revival.timer += delta;
+        
+        // Check if revival duration reached
+        if (revival.timer >= REVIVE_DURATION) {
+          this.completeRevival(revival);
+          return; // Exit early to avoid updating progress bar after completion
+        }
+        
+        // Update progress indicator
+        this.updateRevivalProgressBar(revival);
+        
+        if (DEBUG_MODE && Math.floor(revival.timer / 100) !== Math.floor((revival.timer - delta) / 100)) {
+          // Log every 100ms
+          const progress = (revival.timer / REVIVE_DURATION * 100).toFixed(0);
+          console.log(`[DEBUG] Revival progress: ${progress}% (${revival.timer.toFixed(0)}ms / ${REVIVE_DURATION}ms)`);
+        }
+      } else {
+        // Players moved, separated, or downed player is no longer downed - cancel revival
+        this.cancelRevival();
+      }
+    } else {
+      // Look for player pairs where one is downed
+      for (let i = 0; i < this.players.length; i++) {
+        for (let j = i + 1; j < this.players.length; j++) {
+          const player1 = this.players[i];
+          const player2 = this.players[j];
+          
+          // Check if one player is downed
+          if (player1.isDowned && !player2.isDowned) {
+            // Player1 is downed, Player2 is reviving
+            const isOverlapping = this.arePlayersOverlapping(player1, player2);
+            const isStationary = this.arePlayersStationary(player1, player2);
+            
+            if (isOverlapping && isStationary) {
+              this.startRevival(player2, player1);
+              break;
+            }
+          } else if (player2.isDowned && !player1.isDowned) {
+            // Player2 is downed, Player1 is reviving
+            const isOverlapping = this.arePlayersOverlapping(player1, player2);
+            const isStationary = this.arePlayersStationary(player1, player2);
+            
+            if (isOverlapping && isStationary) {
+              this.startRevival(player1, player2);
+              break;
+            }
+          }
+        }
+        if (this.activeRevival) break;
+      }
+    }
+  }
+
+  /**
+   * Starts a revival process (Phase 4.9)
+   */
+  private startRevival(revivingPlayer: Player, downedPlayer: Player) {
+    // Cancel any existing swap or revival
+    this.cancelPlayerSwap();
+    this.cancelRevival();
+    
+    // Start new revival
+    this.activeRevival = {
+      revivingPlayer,
+      downedPlayer,
+      timer: 0
+    };
+    
+    // Create progress bar
+    this.createRevivalProgressBar(this.activeRevival);
+    
+    console.log(`💚 Revival started: Player ${revivingPlayer.playerId} reviving Player ${downedPlayer.playerId} - 3 second timer started`);
+  }
+
+  /**
+   * Cancels an active revival
+   */
+  private cancelRevival() {
+    if (this.activeRevival) {
+      const wasCancelled = this.activeRevival.timer > 0 && this.activeRevival.timer < REVIVE_DURATION;
+      if (wasCancelled) {
+        console.log(`❌ Revival cancelled: Player ${this.activeRevival.revivingPlayer.playerId} stopped reviving Player ${this.activeRevival.downedPlayer.playerId}`);
+        if (DEBUG_MODE) {
+          console.log(`[DEBUG] Revival cancelled at ${this.activeRevival.timer.toFixed(0)}ms`);
+        }
+      }
+      
+      // Clean up progress bar
+      this.cleanupRevivalProgressBar(this.activeRevival);
+      
+      this.activeRevival = null;
+    }
+  }
+
+  /**
+   * Completes a revival (Phase 4.9)
+   */
+  private completeRevival(revival: PlayerRevivalState) {
+    const downedPlayer = revival.downedPlayer;
+    
+    // Revive the player: restore 1 heart, exit downed state, restore opacity
+    downedPlayer.hearts = 1;
+    downedPlayer.isDowned = false;
+    downedPlayer.setAlpha(1); // Restore full opacity
+    
+    // Ensure player has no items (must pick one up)
+    downedPlayer.setHeldBaby(null);
+    downedPlayer.setHeldWeapon(null);
+    
+    console.log(`✅ Revival completed: Player ${downedPlayer.playerId} revived with 1 heart (no items)`);
+    
+    // Clean up progress bar
+    this.cleanupRevivalProgressBar(revival);
+    
+    // Reset revival state
+    this.activeRevival = null;
+  }
+
+  /**
+   * Creates the revival progress bar (Phase 4.9)
+   */
+  private createRevivalProgressBar(revival: PlayerRevivalState) {
+    revival.progressBar = this.scene.add.graphics();
+    revival.progressBar.setDepth(2000);
+  }
+
+  /**
+   * Updates the revival progress bar (Phase 4.9)
+   */
+  private updateRevivalProgressBar(revival: PlayerRevivalState) {
+    if (!revival.progressBar) return;
+    
+    const midpointX = (revival.revivingPlayer.x + revival.downedPlayer.x) / 2;
+    const midpointY = (revival.revivingPlayer.y + revival.downedPlayer.y) / 2 + SWAP_PROGRESS_BAR_OFFSET_Y;
+    const progress = revival.timer / REVIVE_DURATION;
+    const fillWidth = SWAP_PROGRESS_BAR_WIDTH * progress;
+    
+    revival.progressBar.clear();
+    // Background (gray)
+    revival.progressBar.fillStyle(0x888888);
+    revival.progressBar.fillRect(midpointX - SWAP_PROGRESS_BAR_WIDTH / 2, midpointY - SWAP_PROGRESS_BAR_HEIGHT / 2, SWAP_PROGRESS_BAR_WIDTH, SWAP_PROGRESS_BAR_HEIGHT);
+    // Fill (cyan for revival)
+    revival.progressBar.fillStyle(REVIVE_PROGRESS_BAR_COLOR);
+    revival.progressBar.fillRect(midpointX - SWAP_PROGRESS_BAR_WIDTH / 2, midpointY - SWAP_PROGRESS_BAR_HEIGHT / 2, fillWidth, SWAP_PROGRESS_BAR_HEIGHT);
+  }
+
+  /**
+   * Cleans up the revival progress bar
+   */
+  private cleanupRevivalProgressBar(revival: PlayerRevivalState) {
+    if (revival.progressBar) {
+      revival.progressBar.clear();
+      revival.progressBar.setVisible(false);
+      revival.progressBar.destroy();
+      revival.progressBar = undefined;
     }
   }
 }

@@ -5,9 +5,11 @@ import { Player } from './Player';
 export class Baby extends Phaser.GameObjects.Arc {
   public holder: Player | null = null;
   public calmMeter: number = CALM_METER_MAX;
+  public isCrying: boolean = false; // True when baby is crying (calm meter at 0)
   private calmMeterBarBg?: Phaser.GameObjects.Rectangle;
   private calmMeterBarFill?: Phaser.GameObjects.Rectangle;
   private hasLoggedDepletion: boolean = false;
+  private cryIndicator?: Phaser.GameObjects.Text; // UI indicator for crying
 
   constructor(scene: Phaser.Scene) {
     super(scene, 0, 0, BABY_RADIUS, 0, 360, false, BABY_COLOR);
@@ -70,16 +72,32 @@ export class Baby extends Phaser.GameObjects.Arc {
     const previousMeter = this.calmMeter;
     this.calmMeter = Phaser.Math.Clamp(this.calmMeter, 0, CALM_METER_MAX);
     
-    // Log calm meter depletion (only once when it hits 0)
-    if (this.calmMeter === 0 && previousMeter > 0 && !this.hasLoggedDepletion) {
-      this.hasLoggedDepletion = true;
-      console.log(`😭 Baby calm meter depleted! Baby is crying (Player ${this.holder?.playerId || 'unknown'})`);
+    // Check if calm meter just hit 0 (baby starts crying)
+    if (this.calmMeter === 0 && previousMeter > 0) {
+      this.isCrying = true;
+      
+      // Emit baby-cried event (Phase 4.7)
+      if (this.holder) {
+        this.scene.events.emit('baby-cried', {
+          x: this.x,
+          y: this.y
+        });
+        
+        if (!this.hasLoggedDepletion) {
+          this.hasLoggedDepletion = true;
+          console.log(`😭 Baby calm meter depleted! Baby is crying (Player ${this.holder.playerId})`);
+        }
+      }
     }
     
-    // Reset flag if meter goes above 0
-    if (this.calmMeter > 0 && this.hasLoggedDepletion) {
+    // Check if calm meter recovered (baby stops crying)
+    if (this.calmMeter > 0 && this.isCrying) {
+      this.isCrying = false;
       this.hasLoggedDepletion = false;
     }
+    
+    // Update cry indicator visibility
+    this.updateCryIndicator();
 
     // Update position to be offset on holder
     if (this.holder) {
@@ -113,6 +131,36 @@ export class Baby extends Phaser.GameObjects.Arc {
       CALM_METER_BAR_HEIGHT,
       0x00FF00
     ).setDepth(1001);
+    
+    // Create cry indicator text
+    this.createCryIndicator();
+  }
+  
+  private createCryIndicator() {
+    if (!this.holder) return;
+    
+    const indicatorY = this.holder.y - PLAYER_RADIUS + CALM_METER_BAR_OFFSET_Y - 20; // Above calm meter bar
+    
+    this.cryIndicator = this.scene.add.text(
+      this.holder.x,
+      indicatorY,
+      '😭 CRYING!',
+      {
+        fontSize: '16px',
+        color: '#FF0000',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3
+      }
+    ).setOrigin(0.5, 0.5).setDepth(1002).setVisible(false);
+  }
+  
+  private updateCryIndicator() {
+    if (!this.cryIndicator || !this.holder) return;
+    
+    const indicatorY = this.holder.y - PLAYER_RADIUS + CALM_METER_BAR_OFFSET_Y - 20;
+    this.cryIndicator.setPosition(this.holder.x, indicatorY);
+    this.cryIndicator.setVisible(this.isCrying);
   }
 
   private updateCalmMeterBar() {
@@ -148,6 +196,10 @@ export class Baby extends Phaser.GameObjects.Arc {
     if (this.calmMeterBarBg) {
       this.calmMeterBarBg.destroy();
       this.calmMeterBarBg = undefined;
+    }
+    if (this.cryIndicator) {
+      this.cryIndicator.destroy();
+      this.cryIndicator = undefined;
     }
   }
 

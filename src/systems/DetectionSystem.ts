@@ -48,19 +48,31 @@ export class DetectionSystem {
    */
   update() {
     for (const robot of this.robots) {
-      // Check detection if robot is in PATROL or INVESTIGATING state
-      // (ALERT/ATTACKING/DISABLED states will be handled by their respective behaviors)
-      if (robot.state !== RobotState.PATROL && robot.state !== RobotState.INVESTIGATING) {
+      // Skip if robot is dead, disabled, attacking, or confused
+      if (robot.state === RobotState.DEAD || robot.state === RobotState.DISABLED || 
+          robot.state === RobotState.ATTACKING || (robot as any).isConfused) {
+        continue;
+      }
+
+      // Check detection if robot is in PATROL, INVESTIGATING, or ALERT state
+      // (ALERT state from baby cry should check for players to continue chasing)
+      if (robot.state !== RobotState.PATROL && robot.state !== RobotState.INVESTIGATING && 
+          robot.state !== RobotState.ALERT) {
         continue;
       }
 
       // Check each player
       for (const player of this.players) {
         if (this.isPlayerDetected(robot, player)) {
-          // Player detected! Enter ALERT state (overrides INVESTIGATING)
+          // Player detected! Enter or maintain ALERT state
           robot.state = RobotState.ALERT;
           robot.alertTarget = { x: player.x, y: player.y };
           robot.investigateTimer = 0; // Clear investigation timer
+          
+          // Clear baby cry target if set (player detection takes priority)
+          if ((robot as any).babyCryTarget) {
+            (robot as any).babyCryTarget = null;
+          }
           
           console.log(`🚨 Robot detected player ${player.playerId}! Entering ALERT state.`);
           break; // Only alert on first detection
