@@ -1030,12 +1030,6 @@ export class GameScene extends Phaser.Scene {
     }
     this.walls = undefined as any;
 
-    // Destroy hearts UI
-    if (this.heartsUI && this.heartsUI.active) {
-      this.heartsUI.destroy(true);
-    }
-    this.heartsUI = undefined as any;
-
     // Clear all physics colliders
     if (this.physics && this.physics.world && this.physics.world.colliders) {
       this.physics.world.colliders.destroy();
