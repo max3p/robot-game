@@ -224,11 +224,16 @@ export class FlameBot extends Robot {
       return;
     }
 
-    // Find the target player
+    // Find the target player (ignore downed players)
     let targetPlayer: Player | null = null;
     let minDistance = Infinity;
 
     for (const player of players) {
+      // Ignore downed players
+      if (player.isDowned) {
+        continue;
+      }
+      
       const dist = distance({ x: this.x, y: this.y }, { x: player.x, y: player.y });
       if (dist < minDistance) {
         minDistance = dist;
@@ -303,10 +308,15 @@ export class FlameBot extends Robot {
    * @param players Array of players in the scene
    */
   updateAttacking(delta: number, players: Player[]): void {
-    if (!this.attackTargetPlayer || !this.alertTarget) {
-      // Target lost, return to alert state
+    // Check if attack target is downed or lost
+    if (!this.attackTargetPlayer || !this.alertTarget || this.attackTargetPlayer.isDowned) {
+      // Target lost or downed, return to alert state
+      const wasDowned = this.attackTargetPlayer?.isDowned;
       this.state = RobotState.ALERT;
       this.attackTargetPlayer = null;
+      if (wasDowned) {
+        this.alertTarget = null; // Clear alert target if player is downed
+      }
       this.playerLastDamageTime.clear();
       this.isFlameExpanding = false;
       this.flameExpandTimer = 0;
@@ -378,6 +388,11 @@ export class FlameBot extends Robot {
     const currentTime = Date.now();
     
     for (const player of players) {
+      // Ignore downed players
+      if (player.isDowned) {
+        continue;
+      }
+      
       // Check if player is in the current expanding flame cone
       if (isPointInCone(
         { x: this.x, y: this.y },

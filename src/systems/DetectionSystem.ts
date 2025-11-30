@@ -61,8 +61,13 @@ export class DetectionSystem {
         continue;
       }
 
-      // Check each player
+      // Check each player (skip downed players)
       for (const player of this.players) {
+        // Ignore downed players - they cannot be detected
+        if (player.isDowned) {
+          continue;
+        }
+        
         if (this.isPlayerDetected(robot, player)) {
           // Player detected! Enter or maintain ALERT state
           robot.state = RobotState.ALERT;

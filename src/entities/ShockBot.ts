@@ -280,11 +280,16 @@ export class ShockBot extends Robot {
       return;
     }
 
-    // Find the target player
+    // Find the target player (ignore downed players)
     let targetPlayer: Player | null = null;
     let minDistance = Infinity;
 
     for (const player of players) {
+      // Ignore downed players
+      if (player.isDowned) {
+        continue;
+      }
+      
       const dist = distance({ x: this.x, y: this.y }, { x: player.x, y: player.y });
       if (dist < minDistance) {
         minDistance = dist;
@@ -370,10 +375,15 @@ export class ShockBot extends Robot {
    * @param players Array of players in the scene
    */
   updateAttacking(delta: number, players: Player[]): void {
-    if (!this.attackTargetPlayer || !this.alertTarget) {
-      // Target lost, return to alert state
+    // Check if attack target is downed or lost
+    if (!this.attackTargetPlayer || !this.alertTarget || this.attackTargetPlayer.isDowned) {
+      // Target lost or downed, return to alert state
+      const wasDowned = this.attackTargetPlayer?.isDowned;
       this.state = RobotState.ALERT;
       this.attackTargetPlayer = null;
+      if (wasDowned) {
+        this.alertTarget = null; // Clear alert target if player is downed
+      }
       this.isCharging = false;
       this.chargeTimer = 0;
       this.isShocking = false;
@@ -465,6 +475,11 @@ export class ShockBot extends Robot {
     const currentShockRadius = shockProgress * SHOCK_ATTACK_AOE_RADIUS;
     
     for (const player of players) {
+      // Ignore downed players
+      if (player.isDowned) {
+        continue;
+      }
+      
       const playerDistance = distance({ x: this.x, y: this.y }, { x: player.x, y: player.y });
       
       // Check if player is within the current expanding shock radius
