@@ -109,6 +109,7 @@ export const SPIDER_GOO_SPEED_REDUCTION = 0.33; // 33% speed reduction per hit
 export const SPIDER_LANTERN_RADIUS = 100; // pixels - permanent light radius
 export const SHOCK_EMP_HITS_TO_KILL = 4; // Number of EMP hits to kill shock-bot
 export const SHOCK_EMP_DAZED_DURATION = 2000; // milliseconds - 2 seconds dazed state after EMP hit
+export const WRONG_WEAPON_CONFUSION_DURATION = 500; // milliseconds - 0.5 seconds confused state
 
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging

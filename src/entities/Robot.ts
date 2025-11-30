@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS } from '../config/constants';
+import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS, WRONG_WEAPON_CONFUSION_DURATION } from '../config/constants';
 import { findPath, pathToWorldCoordinates } from '../utils/pathfinding';
 import { distance, normalize } from '../utils/geometry';
 
@@ -66,6 +66,12 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   
   // Investigation state (for sound detection)
   public investigateTimer: number = 0; // Timer for investigation duration
+  
+  // Confusion state (for wrong weapon hits) - Phase 4.5
+  private confusionTimer: number = 0; // Timer for confusion duration
+  private isConfused: boolean = false; // True when in confused state
+  private originalPosition: Vector2 = { x: 0, y: 0 }; // Store original position for shake effect
+  private shakeOffset: Vector2 = { x: 0, y: 0 }; // Current shake offset
   
   // Debug logging state (throttled to avoid spam)
   private lastDebugLogTime: number = 0;
@@ -198,6 +204,13 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       }
     }
     
+    // Update confusion timer and shake effect (Phase 4.5)
+    if (this.isConfused) {
+      this.updateConfusion(delta);
+      // During confusion, stop normal behavior
+      return;
+    }
+    
     // State-based behavior is handled by subclasses
     // Base class only handles patrol and investigating for generic robots
     if (this.state === RobotState.PATROL) {
@@ -232,6 +245,74 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     }
   }
   
+  /**
+   * Updates confusion state - robot shakes and stops moving
+   * Phase 4.5: Wrong Weapon Effect
+   */
+  private updateConfusion(delta: number): void {
+    this.confusionTimer -= delta;
+    
+    // Stop all movement during confusion
+    this.body.setVelocity(0, 0);
+    
+    // Apply shake effect (vibration)
+    const shakeIntensity = 3; // pixels
+    const shakeSpeed = 20; // shakes per second
+    const time = (WRONG_WEAPON_CONFUSION_DURATION - this.confusionTimer) / 1000;
+    
+    // Create shake offset using sine waves for smooth vibration
+    this.shakeOffset.x = Math.sin(time * shakeSpeed * Math.PI * 2) * shakeIntensity;
+    this.shakeOffset.y = Math.cos(time * shakeSpeed * Math.PI * 2) * shakeIntensity;
+    
+    // Apply shake offset to visual position
+    // Store original position if not already stored
+    if (this.confusionTimer >= WRONG_WEAPON_CONFUSION_DURATION - delta) {
+      this.originalPosition = { x: this.x, y: this.y };
+    }
+    
+    // Apply shake offset
+    this.setPosition(this.originalPosition.x + this.shakeOffset.x, this.originalPosition.y + this.shakeOffset.y);
+    
+    if (this.confusionTimer <= 0) {
+      // Confusion complete, return to original position and resume normal behavior
+      this.isConfused = false;
+      this.confusionTimer = 0;
+      this.setPosition(this.originalPosition.x, this.originalPosition.y);
+      this.shakeOffset = { x: 0, y: 0 };
+      
+      if (DEBUG_MODE) {
+        console.log(`🤖 Robot ${this.robotType} recovered from confusion. Resuming normal behavior.`);
+      }
+    }
+  }
+  
+  /**
+   * Applies confusion effect when hit by wrong weapon
+   * Phase 4.5: Wrong Weapon Effect
+   * - Robot enters brief "confused" state (0.5 sec)
+   * - Visual: robot shakes/vibrates
+   * - Then continues normal behavior
+   */
+  applyConfusion(): void {
+    // Don't apply confusion if already dead, disabled, or confused
+    if (this.state === RobotState.DEAD || this.state === RobotState.DISABLED || this.isConfused) {
+      return;
+    }
+    
+    if (DEBUG_MODE) {
+      console.log(`🤖 Robot ${this.robotType} hit by wrong weapon! Entering confused state for 0.5 seconds.`);
+    }
+    
+    // Enter confused state
+    this.isConfused = true;
+    this.confusionTimer = WRONG_WEAPON_CONFUSION_DURATION;
+    this.originalPosition = { x: this.x, y: this.y };
+    this.shakeOffset = { x: 0, y: 0 };
+    
+    // Stop all movement
+    this.body.setVelocity(0, 0);
+  }
+
   /**
    * Method to be overridden by subclasses for alert behavior
    * @param delta Time delta in milliseconds

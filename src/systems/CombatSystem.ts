@@ -313,6 +313,7 @@ export class CombatSystem {
    * Phase 4.2: Goo Gun Effect
    * Phase 4.3: EMP Gun Effect
    * Phase 4.4: Water Gun Effect
+   * Phase 4.5: Wrong Weapon Effect
    */
   private applyWeaponEffect(weaponType: WeaponType, target: Robot): void {
     if (weaponType === WeaponType.GOO_GUN && target instanceof SpiderBot) {
@@ -325,8 +326,8 @@ export class CombatSystem {
       // Water Gun hits Flame-Bot: disable temporarily
       this.applyWaterEffect(target);
     } else {
-      // Wrong weapon type - confusion effect (Phase 4.5 - not implemented yet)
-      // TODO: Implement in Phase 4.5
+      // Wrong weapon type - confusion effect
+      this.applyWrongWeaponEffect(target);
     }
   }
 
@@ -359,6 +360,17 @@ export class CombatSystem {
    */
   private applyWaterEffect(flameBot: FlameBot): void {
     flameBot.applyWaterHit();
+  }
+
+  /**
+   * Applies wrong weapon effect to a robot
+   * Phase 4.5: Wrong Weapon Effect
+   * - Robot enters brief "confused" state (0.5 sec)
+   * - Visual: robot shakes/vibrates
+   * - Then continues normal behavior
+   */
+  private applyWrongWeaponEffect(robot: Robot): void {
+    robot.applyConfusion();
   }
 }
 
