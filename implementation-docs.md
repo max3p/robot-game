@@ -1160,7 +1160,6 @@ Ground items spawn within 3 tiles of start position.
    - Another player stands on downed player
    - Progress indicator shows revival progress
    - After 3 seconds: downed player revives with 1 heart
-   - Revived player has no item (must pick one up)
 
 #### Phase 4 Acceptance Criteria:
 - [ ] Auto-shooting works for all weapon types

@@ -304,7 +304,8 @@ export class Player extends Phaser.GameObjects.Arc {
 
   /**
    * Enters the downed state (Phase 4.8)
-   * Player cannot move, is rendered at 50% opacity, and drops their held item
+   * Player cannot move, is rendered at 50% opacity
+   * Player keeps their held item (no dropping)
    */
   private enterDownedState(): void {
     if (this.isDowned) {
@@ -322,36 +323,10 @@ export class Player extends Phaser.GameObjects.Arc {
     // Stop movement
     this.body.setVelocity(0, 0);
     
-    // Drop held item to ground at player's position
-    const dropX = this.x;
-    const dropY = this.y;
-    
-    if (this.heldBaby) {
-      const baby = this.heldBaby;
-      this.setHeldBaby(null);
-      baby.placeOnGround(dropX, dropY);
-      
-      // Emit event so GameScene can add baby to SwapSystem's ground items
-      this.scene.events.emit('item-dropped', { item: baby });
-      
-      if (DEBUG_MODE) {
-        console.log(`💀 Player ${this.playerId} downed! Baby dropped at (${dropX.toFixed(0)}, ${dropY.toFixed(0)})`);
-      }
-    } else if (this.heldWeapon) {
-      const weapon = this.heldWeapon;
-      this.setHeldWeapon(null);
-      weapon.placeOnGround(dropX, dropY);
-      
-      // Emit event so GameScene can add weapon to SwapSystem's ground items
-      this.scene.events.emit('item-dropped', { item: weapon });
-      
-      if (DEBUG_MODE) {
-        console.log(`💀 Player ${this.playerId} downed! Weapon dropped at (${dropX.toFixed(0)}, ${dropY.toFixed(0)})`);
-      }
-    }
-    
+    // Player keeps their held item - no dropping
     if (DEBUG_MODE) {
-      console.log(`💀 Player ${this.playerId} entered DOWNED state`);
+      const itemType = this.heldBaby ? 'Baby' : (this.heldWeapon ? this.heldWeapon.weaponType : 'nothing');
+      console.log(`💀 Player ${this.playerId} entered DOWNED state (keeping ${itemType})`);
     }
   }
 

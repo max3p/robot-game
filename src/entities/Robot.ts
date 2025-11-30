@@ -5,7 +5,7 @@ import { findPath, pathToWorldCoordinates } from '../utils/pathfinding';
 import { distance, normalize } from '../utils/geometry';
 
 export class Robot extends Phaser.GameObjects.Rectangle {
-  public body!: Phaser.Physics.Arcade.Body;
+  declare public body: Phaser.Physics.Arcade.Body;
   public robotType: RobotType;
   public state: RobotState = RobotState.PATROL;
   public facingDirection: Vector2 = { x: 0, y: -1 }; // Default facing up
@@ -43,16 +43,6 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   private pathRecalculationCooldown: number = 0; // Cooldown before recalculating path (ms)
   private readonly PATH_RECALCULATION_COOLDOWN_MS = 500; // Recalculate path at most once per 500ms
   private lastPathTargetTile: Vector2 | null = null; // Last tile we calculated a path to
-  
-  // Behavior states for patrol AI
-  private patrolBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';
-  private behaviorTimer: number = 0;
-  private behaviorDuration: number = 0;
-  private lookDirection: Vector2 = { x: 0, y: -1 }; // Direction robot is looking when in LOOKING state
-  
-  // Smooth movement state
-  private currentVelocity: Vector2 = { x: 0, y: 0 }; // Current velocity for smooth acceleration
-  private targetVelocity: Vector2 = { x: 0, y: 0 }; // Target velocity to accelerate toward
   
   // Behavior states for patrol AI
   private patrolBehavior: 'MOVING' | 'LOOKING' | 'RESTING' = 'MOVING';

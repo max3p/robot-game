@@ -50,9 +50,6 @@ export class GameScene extends Phaser.Scene {
     // Listen for baby cry events to alert all robots (Phase 4.7)
     this.events.on('baby-cried', this.handleBabyCry.bind(this));
     
-    // Listen for item dropped events (Phase 4.8: Downed State)
-    this.events.on('item-dropped', this.handleItemDropped.bind(this));
-    
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
     
@@ -395,14 +392,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Handles item dropped event - adds item to SwapSystem's ground items
-   * Phase 4.8: Downed State
-   */
-  private handleItemDropped(data: { item: Baby | Weapon }): void {
-    // Add the dropped item to SwapSystem's ground items tracking
-    this.swapSystem.addGroundItem(data.item);
-  }
 
   /**
    * Spawns all robots from level data based on player count

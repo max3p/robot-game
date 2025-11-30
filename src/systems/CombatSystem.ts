@@ -84,8 +84,13 @@ export class CombatSystem {
     // Update and clean up shot effects
     this.updateShotEffects(delta);
 
-    // Process each player with a weapon
+    // Process each player with a weapon (skip downed players)
     for (const player of this.players) {
+      // Downed players cannot shoot
+      if (player.isDowned) {
+        continue;
+      }
+      
       if (player.heldWeapon) {
         this.processPlayerWeapon(player, player.heldWeapon, delta);
       }

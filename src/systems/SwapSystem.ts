@@ -65,8 +65,13 @@ export class SwapSystem {
    * @param delta Time elapsed since last frame in milliseconds
    */
   update(delta: number) {
-    // Check each player against ground items
+    // Check each player against ground items (skip downed players)
     this.players.forEach(player => {
+      // Downed players cannot swap items
+      if (player.isDowned) {
+        return;
+      }
+      
       this.groundItems.forEach(item => {
         if (this.isPlayerNearItem(player, item)) {
           this.swapWithGroundItem(player, item);
@@ -114,11 +119,16 @@ export class SwapSystem {
         this.cancelPlayerSwap();
       }
     } else {
-      // Look for new player pairs to start swapping
+      // Look for new player pairs to start swapping (skip downed players)
       for (let i = 0; i < this.players.length; i++) {
         for (let j = i + 1; j < this.players.length; j++) {
           const player1 = this.players[i];
           const player2 = this.players[j];
+          
+          // Skip if either player is downed (revival is handled separately)
+          if (player1.isDowned || player2.isDowned) {
+            continue;
+          }
           
           const isOverlapping = this.arePlayersOverlapping(player1, player2);
           const isStationary = this.arePlayersStationary(player1, player2);
