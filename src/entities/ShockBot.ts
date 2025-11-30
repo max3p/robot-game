@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SHOCK_SPEED, SHOCK_SIZE, SHOCK_COLOR, SHOCK_ATTACK_RANGE, SHOCK_ATTACK_COOLDOWN, SHOCK_ATTACK_DAMAGE, SHOCK_ATTACK_CHARGE_TIME, SHOCK_ATTACK_AOE_RADIUS, SHOCK_MIN_CHASE_DISTANCE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, SHOCK_EMP_HITS_TO_KILL, SHOCK_EMP_DAZED_DURATION } from '../config/constants';
+import { SHOCK_SPEED, SHOCK_SIZE, SHOCK_COLOR, SHOCK_ATTACK_RANGE, SHOCK_ATTACK_COOLDOWN, SHOCK_ATTACK_DAMAGE, SHOCK_ATTACK_CHARGE_TIME, SHOCK_ATTACK_AOE_RADIUS, SHOCK_MIN_CHASE_DISTANCE, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, SHOCK_EMP_HITS_TO_KILL, SHOCK_EMP_DAZED_DURATION, CRY_ROBOT_SPEED_MULTIPLIER } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -347,7 +347,12 @@ export class ShockBot extends Robot {
       this.clearChasePath(); // Clear path when stopped
     } else {
       // Need to get closer - use pathfinding to chase the target
-      const chaseSpeed = BASE_PLAYER_SPEED * ALERT_SPEED_MULTIPLIER;
+      // Phase 5.1: Apply 1.5x speed multiplier if alerted by baby cry
+      let speedMultiplier = ALERT_SPEED_MULTIPLIER;
+      if (this.isBabyCryAlerted()) {
+        speedMultiplier *= CRY_ROBOT_SPEED_MULTIPLIER;
+      }
+      const chaseSpeed = BASE_PLAYER_SPEED * speedMultiplier;
       
       // Calculate path to target
       const pathFound = this.calculatePathToTarget(this.alertTarget);

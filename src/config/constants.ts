@@ -121,7 +121,12 @@ export const INVINCIBILITY_DURATION = 1000; // milliseconds - 1 second invincibi
 export const PLAYER_FLASH_DURATION = 100; // milliseconds - duration of each flash cycle
 
 // Baby Cry
-export const BABY_CRY_ALERT_DURATION = 5000; // milliseconds - 5 seconds robots are alerted to baby location
+export const CRY_ALERT_DURATION = 3000; // milliseconds - 3 seconds robots are alerted to baby location (Phase 5.1)
+export const CRY_ROBOT_SPEED_MULTIPLIER = 1.5; // Robots move 1.5x faster during cry alert (Phase 5.1)
+export const CALM_METER_POST_CRY_RESET = 50; // Calm meter resets to 50 after cry ends (Phase 5.1)
+
+// Legacy constant for backwards compatibility (deprecated - use CRY_ALERT_DURATION)
+export const BABY_CRY_ALERT_DURATION = CRY_ALERT_DURATION;
 
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging

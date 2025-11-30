@@ -1187,7 +1187,6 @@ Ground items spawn within 3 tiles of start position.
    - Trigger when baby holder takes damage
    - All robots globally alerted
    - Robots set target to baby position
-   - Robots speed increased by 1.5x during alert
    - Cry lasts 3 seconds
    - After cry ends: calm meter resets to 50
 

@@ -286,13 +286,10 @@ export class Player extends Phaser.GameObjects.Arc {
     this.isFlashing = true;
     this.setAlpha(0.3); // Start with reduced opacity
 
-    // Trigger baby cry if player is baby holder (Phase 4.7)
+    // Trigger baby cry if player is baby holder (Phase 4.7 / Phase 5.1)
     if (this.heldBaby) {
-      // Emit baby-cried event with baby's current location
-      this.scene.events.emit('baby-cried', {
-        x: this.heldBaby.x,
-        y: this.heldBaby.y
-      });
+      // Start baby crying (will emit event and handle timer)
+      this.heldBaby.startCrying();
       
       if (DEBUG_MODE) {
         console.log(`😭 Baby cried! Player ${this.playerId} took damage while holding baby.`);

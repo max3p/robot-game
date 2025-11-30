@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS, WRONG_WEAPON_CONFUSION_DURATION, BABY_CRY_ALERT_DURATION } from '../config/constants';
+import { TILE_SIZE, SPIDER_LIGHT_RADIUS, SPIDER_LIGHT_ANGLE, SPIDER_LIGHT_COLOR, SHOCK_LIGHT_RADIUS, SHOCK_LIGHT_ANGLE, SHOCK_LIGHT_COLOR, FLAME_LIGHT_RADIUS, FLAME_LIGHT_ANGLE, FLAME_LIGHT_COLOR, DEBUG_MODE, ROBOT_ACCELERATION, ROBOT_DECELERATION, ROBOT_CLOSE_RANGE_DETECTION_RADIUS, WRONG_WEAPON_CONFUSION_DURATION, CRY_ALERT_DURATION, CRY_ROBOT_SPEED_MULTIPLIER } from '../config/constants';
 import { findPath, pathToWorldCoordinates } from '../utils/pathfinding';
 import { distance, normalize } from '../utils/geometry';
 
@@ -346,8 +346,9 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   }
 
   /**
-   * Alerts the robot to a specific location (Phase 4.7)
-   * Called when baby cries - alerts robot to baby's location for 5 seconds
+   * Alerts the robot to a specific location (Phase 4.7 / Phase 5.1)
+   * Called when baby cries - alerts robot to baby's location for CRY_ALERT_DURATION (3 seconds)
+   * Robots move 1.5x faster during cry alert (CRY_ROBOT_SPEED_MULTIPLIER)
    * @param targetLocation The location to alert to
    */
   alertToLocation(targetLocation: Vector2): void {
@@ -359,9 +360,9 @@ export class Robot extends Phaser.GameObjects.Rectangle {
       return;
     }
     
-    // Set baby cry alert state
+    // Set baby cry alert state (Phase 5.1)
     this.babyCryTarget = { x: targetLocation.x, y: targetLocation.y };
-    this.babyCryAlertTimer = BABY_CRY_ALERT_DURATION;
+    this.babyCryAlertTimer = CRY_ALERT_DURATION;
     
     // Enter ALERT state and set target
     this.state = RobotState.ALERT;
@@ -383,6 +384,14 @@ export class Robot extends Phaser.GameObjects.Rectangle {
     if (DEBUG_MODE) {
       console.log(`[Robot ${this.robotType}] Alerted to baby cry location (${targetLocation.x.toFixed(0)}, ${targetLocation.y.toFixed(0)})`);
     }
+  }
+
+  /**
+   * Checks if robot is currently in baby cry alert state (Phase 5.1)
+   * @returns True if robot is alerted by baby cry (timer still active)
+   */
+  public isBabyCryAlerted(): boolean {
+    return this.babyCryAlertTimer > 0;
   }
   
   /**

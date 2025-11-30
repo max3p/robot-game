@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BABY_RADIUS, CALM_METER_MAX, CALM_METER_DRAIN_RATE, CALM_METER_FILL_RATE, BABY_COLOR, PLAYER_RADIUS, CALM_METER_BAR_WIDTH, CALM_METER_BAR_HEIGHT, CALM_METER_BAR_OFFSET_Y, BABY_OFFSET_Y } from '../config/constants';
+import { BABY_RADIUS, CALM_METER_MAX, CALM_METER_DRAIN_RATE, CALM_METER_FILL_RATE, BABY_COLOR, PLAYER_RADIUS, CALM_METER_BAR_WIDTH, CALM_METER_BAR_HEIGHT, CALM_METER_BAR_OFFSET_Y, BABY_OFFSET_Y, CRY_ALERT_DURATION, CALM_METER_POST_CRY_RESET } from '../config/constants';
 import { Player } from './Player';
 
 export class Baby extends Phaser.GameObjects.Arc {
@@ -10,6 +10,7 @@ export class Baby extends Phaser.GameObjects.Arc {
   private calmMeterBarFill?: Phaser.GameObjects.Rectangle;
   private hasLoggedDepletion: boolean = false;
   private cryIndicator?: Phaser.GameObjects.Text; // UI indicator for crying
+  private cryTimer: number = 0; // Timer for cry duration (Phase 5.1)
 
   constructor(scene: Phaser.Scene) {
     super(scene, 0, 0, BABY_RADIUS, 0, 360, false, BABY_COLOR);
@@ -52,8 +53,19 @@ export class Baby extends Phaser.GameObjects.Arc {
   }
 
   update(delta: number) {
+    // Update cry timer even when baby is on ground (Phase 5.1)
+    if (this.isCrying) {
+      this.cryTimer -= delta;
+      
+      // After cry duration ends, reset calm meter to 50 and stop crying
+      if (this.cryTimer <= 0) {
+        this.endCrying();
+      }
+    }
+
+    // Only update calm meter and position when held
     if (!this.holder) {
-      return; // Baby not held, no updates needed
+      return; // Baby not held, no further updates needed
     }
 
     // Update calm meter based on holder movement
@@ -74,36 +86,22 @@ export class Baby extends Phaser.GameObjects.Arc {
     
     // Check if calm meter just hit 0 (baby starts crying)
     if (this.calmMeter === 0 && previousMeter > 0) {
-      this.isCrying = true;
-      
-      // Emit baby-cried event (Phase 4.7)
-      if (this.holder) {
-        this.scene.events.emit('baby-cried', {
-          x: this.x,
-          y: this.y
-        });
-        
-        if (!this.hasLoggedDepletion) {
-          this.hasLoggedDepletion = true;
-          console.log(`😭 Baby calm meter depleted! Baby is crying (Player ${this.holder.playerId})`);
-        }
-      }
+      this.startCrying();
     }
     
-    // Check if calm meter recovered (baby stops crying)
-    if (this.calmMeter > 0 && this.isCrying) {
+    // Check if calm meter recovered naturally (baby stops crying) - only if not in cry event
+    if (this.calmMeter > 0 && this.isCrying && this.cryTimer <= 0) {
       this.isCrying = false;
       this.hasLoggedDepletion = false;
+      this.cryTimer = 0;
     }
     
     // Update cry indicator visibility
     this.updateCryIndicator();
 
     // Update position to be offset on holder
-    if (this.holder) {
-      const offsetY = -PLAYER_RADIUS + BABY_OFFSET_Y; // Slightly above player
-      this.setPosition(this.holder.x, this.holder.y + offsetY);
-    }
+    const offsetY = -PLAYER_RADIUS + BABY_OFFSET_Y; // Slightly above player
+    this.setPosition(this.holder.x, this.holder.y + offsetY);
 
     // Update calm meter bar
     this.updateCalmMeterBar();
@@ -200,6 +198,58 @@ export class Baby extends Phaser.GameObjects.Arc {
     if (this.cryIndicator) {
       this.cryIndicator.destroy();
       this.cryIndicator = undefined;
+    }
+  }
+
+  /**
+   * Starts the baby crying (Phase 5.1)
+   * Sets isCrying to true and starts the cry timer
+   */
+  public startCrying(): void {
+    if (this.isCrying) {
+      return; // Already crying
+    }
+    
+    this.isCrying = true;
+    this.cryTimer = CRY_ALERT_DURATION; // 3 seconds
+    
+    // Emit baby-cried event (Phase 4.7 / Phase 5.1)
+    if (this.holder) {
+      this.scene.events.emit('baby-cried', {
+        x: this.x,
+        y: this.y
+      });
+      
+      if (!this.hasLoggedDepletion) {
+        this.hasLoggedDepletion = true;
+        console.log(`😭 Baby calm meter depleted! Baby is crying (Player ${this.holder.playerId})`);
+      }
+    } else {
+      // Baby is on ground, still emit event
+      this.scene.events.emit('baby-cried', {
+        x: this.x,
+        y: this.y
+      });
+    }
+  }
+
+  /**
+   * Ends the baby crying and resets calm meter to 50 (Phase 5.1)
+   */
+  private endCrying(): void {
+    if (!this.isCrying) {
+      return;
+    }
+    
+    this.isCrying = false;
+    this.cryTimer = 0;
+    this.hasLoggedDepletion = false;
+    
+    // Reset calm meter to 50 after cry ends (Phase 5.1)
+    this.calmMeter = CALM_METER_POST_CRY_RESET;
+    
+    if (this.holder) {
+      console.log(`😌 Baby stopped crying. Calm meter reset to ${CALM_METER_POST_CRY_RESET} (Player ${this.holder.playerId})`);
     }
   }
 

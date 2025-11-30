@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, SPIDER_LEAP_SPEED, SPIDER_LEAP_DISTANCE, SPIDER_RECUPERATION_DURATION, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, SPIDER_GOO_HITS_TO_KILL, SPIDER_GOO_SPEED_REDUCTION } from '../config/constants';
+import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, SPIDER_LEAP_SPEED, SPIDER_LEAP_DISTANCE, SPIDER_RECUPERATION_DURATION, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, SPIDER_GOO_HITS_TO_KILL, SPIDER_GOO_SPEED_REDUCTION, CRY_ROBOT_SPEED_MULTIPLIER } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -222,7 +222,12 @@ export class SpiderBot extends Robot {
       this.clearChasePath(); // Clear path when attacking
     } else {
       // Use pathfinding to chase the target
-      const chaseSpeed = BASE_PLAYER_SPEED * ALERT_SPEED_MULTIPLIER;
+      // Phase 5.1: Apply 1.5x speed multiplier if alerted by baby cry
+      let speedMultiplier = ALERT_SPEED_MULTIPLIER;
+      if (this.isBabyCryAlerted()) {
+        speedMultiplier *= CRY_ROBOT_SPEED_MULTIPLIER;
+      }
+      const chaseSpeed = BASE_PLAYER_SPEED * speedMultiplier;
       
       // Calculate path to target
       const pathFound = this.calculatePathToTarget(this.alertTarget);

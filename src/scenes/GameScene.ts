@@ -12,10 +12,11 @@ import { SwapSystem } from '../systems/SwapSystem';
 import { DetectionSystem } from '../systems/DetectionSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { Lantern } from '../entities/Lantern';
-import { RobotSpawn, WeaponType, RobotType, RobotState } from '../types';
+import { RobotSpawn, WeaponType, RobotType, RobotState, LevelData } from '../types';
+import { GameOverData } from './GameOverScene';
 
 export class GameScene extends Phaser.Scene {
-  private levelData = Level1;
+  private levelData!: LevelData;
   private levelOffsetX = 0;
   private levelOffsetY = 0;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -27,9 +28,37 @@ export class GameScene extends Phaser.Scene {
   private combatSystem!: CombatSystem;
   private lanterns: Lantern[] = [];
   private heartsUI!: Phaser.GameObjects.Graphics;
+  private isGameOver: boolean = false; // Prevent multiple game over triggers
 
   constructor() {
     super({ key: 'GameScene' });
+  }
+
+  init(data?: { levelData?: LevelData }) {
+    // Accept level data from scene transition, or default to Level1
+    this.levelData = data?.levelData || Level1;
+    this.isGameOver = false; // Reset game over flag
+    
+    // Ensure arrays are reset (defensive)
+    this.players = [];
+    this.robots = [];
+    this.lanterns = [];
+  }
+
+  shutdown() {
+    // Phaser automatically cleans up the scene when it restarts
+    // We just need to reset our references so they don't point to destroyed objects
+    this.players = [];
+    this.robots = [];
+    this.lanterns = [];
+    this.baby = undefined as any;
+    this.walls = undefined as any;
+    this.heartsUI = undefined as any;
+    this.swapSystem = undefined as any;
+    this.detectionSystem = undefined as any;
+    this.combatSystem = undefined as any;
+    this.levelOffsetX = 0;
+    this.levelOffsetY = 0;
   }
 
   create() {
@@ -66,6 +95,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    // Phase 5.2: Check for game over (baby holder downed) - check early to prevent further updates
+    if (!this.isGameOver && this.baby) {
+      const babyHolder = this.players.find(player => player.heldBaby === this.baby);
+      if (babyHolder && babyHolder.isDowned) {
+        this.triggerGameOver('Baby holder down!');
+        return; // Stop all updates
+      }
+    }
+
+    // If game over, don't update anything
+    if (this.isGameOver) {
+      return;
+    }
+
     // Update all players (apply input and movement)
     this.players.forEach(player => {
       player.update(delta);
@@ -703,6 +746,115 @@ export class GameScene extends Phaser.Scene {
       graphics.lineTo(pointX, pointY);
       graphics.closePath();
       graphics.strokePath();
+    }
+  }
+
+  /**
+   * Triggers game over and transitions to GameOverScene (Phase 5.2)
+   * @param reason The reason for game over (e.g., "Baby holder down!")
+   */
+  private triggerGameOver(reason: string): void {
+    if (this.isGameOver) {
+      return; // Already triggered
+    }
+
+    this.isGameOver = true;
+
+    // Prepare game over data
+    const gameOverData: GameOverData = {
+      reason: reason,
+      levelData: this.levelData
+    };
+
+    // Transition to GameOverScene
+    this.scene.start('GameOverScene', gameOverData);
+
+    if (DEBUG_MODE) {
+      console.log(`💀 Game Over triggered: ${reason}`);
+    }
+  }
+
+  /**
+   * Cleans up all entities and resets scene state (for retry functionality)
+   * Called at the start of create() to ensure fresh state
+   */
+  private cleanupScene(): void {
+    // Destroy all players
+    if (this.players) {
+      this.players.forEach(player => {
+        if (player && player.active) {
+          player.destroy(true);
+        }
+      });
+    }
+    this.players = [];
+
+    // Destroy all robots
+    if (this.robots) {
+      this.robots.forEach(robot => {
+        if (robot && robot.active) {
+          robot.destroy(true);
+        }
+      });
+    }
+    this.robots = [];
+
+    // Destroy baby
+    if (this.baby && this.baby.active) {
+      this.baby.destroy(true);
+    }
+    this.baby = undefined as any;
+
+    // Destroy all lanterns
+    if (this.lanterns) {
+      this.lanterns.forEach(lantern => {
+        if (lantern && lantern.active) {
+          lantern.destroy(true);
+        }
+      });
+    }
+    this.lanterns = [];
+
+    // Destroy all weapons (check all children for Weapon instances)
+    // Use a snapshot of the list to avoid modification during iteration
+    const childrenSnapshot = [...this.children.list];
+    childrenSnapshot.forEach(child => {
+      if (child instanceof Weapon && child.active) {
+        child.destroy(true);
+      }
+    });
+
+    // Destroy walls group
+    if (this.walls) {
+      this.walls.clear(true, true);
+    }
+    this.walls = undefined as any;
+
+    // Destroy hearts UI
+    if (this.heartsUI && this.heartsUI.active) {
+      this.heartsUI.destroy(true);
+    }
+    this.heartsUI = undefined as any;
+
+    // Clear all physics colliders
+    if (this.physics && this.physics.world && this.physics.world.colliders) {
+      this.physics.world.colliders.destroy();
+    }
+
+    // Remove all event listeners
+    this.events.removeAllListeners();
+
+    // Reset systems (will be reinitialized in create())
+    this.swapSystem = undefined as any;
+    this.detectionSystem = undefined as any;
+    this.combatSystem = undefined as any;
+
+    // Reset offsets (will be recalculated in renderLevel)
+    this.levelOffsetX = 0;
+    this.levelOffsetY = 0;
+
+    if (DEBUG_MODE) {
+      console.log('🧹 Scene cleaned up - ready for fresh start');
     }
   }
 }

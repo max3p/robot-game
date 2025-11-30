@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { FLAME_SPEED, FLAME_SIZE, FLAME_COLOR, FLAME_ATTACK_RANGE, FLAME_ATTACK_COOLDOWN, FLAME_ATTACK_DAMAGE, FLAME_ATTACK_CONE_ANGLE, FLAME_ATTACK_CONE_LENGTH, FLAME_EXPAND_DURATION, FLAME_DAMAGE_INTERVAL, FLAME_CHASE_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, FLAME_DISABLE_DURATION, FLAME_REIGNITE_TIME } from '../config/constants';
+import { FLAME_SPEED, FLAME_SIZE, FLAME_COLOR, FLAME_ATTACK_RANGE, FLAME_ATTACK_COOLDOWN, FLAME_ATTACK_DAMAGE, FLAME_ATTACK_CONE_ANGLE, FLAME_ATTACK_CONE_LENGTH, FLAME_EXPAND_DURATION, FLAME_DAMAGE_INTERVAL, FLAME_CHASE_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, FLAME_DISABLE_DURATION, FLAME_REIGNITE_TIME, CRY_ROBOT_SPEED_MULTIPLIER } from '../config/constants';
 import { distance, normalize, isPointInCone } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -285,7 +285,12 @@ export class FlameBot extends Robot {
       };
       
       // Use pathfinding to chase the target
-      const chaseSpeed = BASE_PLAYER_SPEED * FLAME_CHASE_SPEED_MULTIPLIER;
+      // Phase 5.1: Apply 1.5x speed multiplier if alerted by baby cry
+      let speedMultiplier = FLAME_CHASE_SPEED_MULTIPLIER;
+      if (this.isBabyCryAlerted()) {
+        speedMultiplier *= CRY_ROBOT_SPEED_MULTIPLIER;
+      }
+      const chaseSpeed = BASE_PLAYER_SPEED * speedMultiplier;
       
       // Calculate path to target
       const pathFound = this.calculatePathToTarget(this.alertTarget);
