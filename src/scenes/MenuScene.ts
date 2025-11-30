@@ -22,25 +22,38 @@ export class MenuScene extends Phaser.Scene {
     super({ key: 'MenuScene' });
   }
 
+  preload() {
+    // Load the cover image
+    this.load.image('tabula-cover', '/tabula-cover.png');
+  }
+
   create() {
+    // Stop UIScene if it's still running (from GameScene)
+    if (this.scene.isActive('UIScene')) {
+      this.scene.stop('UIScene');
+    }
+
+    // Clear button arrays when scene is recreated
+    this.playerCountButtons = [];
+    this.levelButtons = [];
+
     const centerX = GAME_WIDTH / 2;
     const centerY = GAME_HEIGHT / 2;
 
-    // Game title
-    this.add.text(centerX, 100, 'TABULA RASA', {
-      ...TEXT_STYLE_TITLE,
-      color: '#FFFFFF'
-    }).setOrigin(0.5, 0.5);
+    // Display cover image as background (960x960, covers entire screen)
+    this.add.image(centerX, centerY, 'tabula-cover')
+      .setOrigin(0.5, 0.5)
+      .setDepth(0); // Behind all UI elements
 
     // Player count selection
-    this.add.text(centerX, 200, 'Players', {
+    this.add.text(centerX, 400, 'Players', {
       ...TEXT_STYLE_SUBTITLE,
       color: '#FFFFFF',
       fontSize: '24px'
-    }).setOrigin(0.5, 0.5);
+    }).setOrigin(0.5, 0.5).setDepth(10);
 
     // Player count buttons (1, 2, 3, 4)
-    const playerCountY = 260;
+    const playerCountY = 460;
     const playerCountSpacing = 80;
     const playerCountStartX = centerX - (playerCountSpacing * 1.5);
 
@@ -63,19 +76,20 @@ export class MenuScene extends Phaser.Scene {
           this.selectPlayerCount(i);
         }
       );
+      button.setDepth(10); // Above background image
 
       this.playerCountButtons.push(button);
     }
 
     // Level selection
-    this.add.text(centerX, 350, 'Level', {
+    this.add.text(centerX, 550, 'Level', {
       ...TEXT_STYLE_SUBTITLE,
       color: '#FFFFFF',
       fontSize: '24px'
-    }).setOrigin(0.5, 0.5);
+    }).setOrigin(0.5, 0.5).setDepth(10);
 
     // Level buttons
-    const levelY = 410;
+    const levelY = 600;
     const levelSpacing = 150;
     const levelStartX = centerX - ((this.availableLevels.length - 1) * levelSpacing) / 2;
 
@@ -98,6 +112,7 @@ export class MenuScene extends Phaser.Scene {
           this.selectLevel(level);
         }
       );
+      button.setDepth(10); // Above background image
 
       this.levelButtons.push(button);
     });
@@ -106,7 +121,7 @@ export class MenuScene extends Phaser.Scene {
     this.startButton = createInteractiveButton(
       this,
       centerX,
-      centerY + 150,
+      centerY + 260,
       'START',
       {
         ...TEXT_STYLE_BUTTON,
@@ -118,6 +133,7 @@ export class MenuScene extends Phaser.Scene {
         this.startGame();
       }
     );
+    this.startButton.setDepth(10); // Above background image
 
     console.log('📋 Menu scene initialized');
   }
@@ -128,14 +144,31 @@ export class MenuScene extends Phaser.Scene {
   private selectPlayerCount(count: number): void {
     this.selectedPlayerCount = count;
     
-    // Update button colors
+    // Update button colors and hover handlers
     this.playerCountButtons.forEach((button, index) => {
       const playerNum = index + 1;
-      if (playerNum === count) {
-        button.setStyle({ color: '#00FF00' });
-      } else {
-        button.setStyle({ color: '#FFFFFF' });
-      }
+      const isSelected = playerNum === count;
+      const newColor = isSelected ? '#00FF00' : '#FFFFFF';
+      
+      // Update button style
+      button.setStyle({
+        ...TEXT_STYLE_BUTTON,
+        color: newColor,
+        fontSize: '32px'
+      });
+      
+      // Update hover handlers to use current color
+      button.removeAllListeners('pointerover');
+      button.removeAllListeners('pointerout');
+      button.on('pointerover', () => {
+        button.setStyle({ color: '#00CC00' });
+      });
+      button.on('pointerout', () => {
+        button.setStyle({ color: newColor });
+      });
+      button.on('pointerdown', () => {
+        this.selectPlayerCount(playerNum);
+      });
     });
 
     console.log(`👥 Selected ${count} player(s)`);
@@ -147,14 +180,31 @@ export class MenuScene extends Phaser.Scene {
   private selectLevel(level: LevelData): void {
     this.selectedLevel = level;
     
-    // Update button colors
+    // Update button colors and hover handlers
     this.levelButtons.forEach((button, index) => {
-      const level = this.availableLevels[index];
-      if (level.id === this.selectedLevel.id) {
-        button.setStyle({ color: '#00FF00' });
-      } else {
-        button.setStyle({ color: '#FFFFFF' });
-      }
+      const levelData = this.availableLevels[index];
+      const isSelected = levelData.id === this.selectedLevel.id;
+      const newColor = isSelected ? '#00FF00' : '#FFFFFF';
+      
+      // Update button style
+      button.setStyle({
+        ...TEXT_STYLE_BUTTON,
+        color: newColor,
+        fontSize: '20px'
+      });
+      
+      // Update hover handlers to use current color
+      button.removeAllListeners('pointerover');
+      button.removeAllListeners('pointerout');
+      button.on('pointerover', () => {
+        button.setStyle({ color: '#00CC00' });
+      });
+      button.on('pointerout', () => {
+        button.setStyle({ color: newColor });
+      });
+      button.on('pointerdown', () => {
+        this.selectLevel(levelData);
+      });
     });
 
     console.log(`🎮 Selected level: ${level.name}`);

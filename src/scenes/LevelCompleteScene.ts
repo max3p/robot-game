@@ -28,6 +28,11 @@ export class LevelCompleteScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Stop UIScene if it's still running (from GameScene)
+    if (this.scene.isActive('UIScene')) {
+      this.scene.stop('UIScene');
+    }
+
     const centerX = GAME_WIDTH / 2;
     const centerY = GAME_HEIGHT / 2;
 

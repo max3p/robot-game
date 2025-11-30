@@ -61,6 +61,11 @@ export class GameScene extends Phaser.Scene {
    * Phaser automatically cleans up game objects, we just reset references
    */
   shutdown(): void {
+    // Stop UIScene when leaving GameScene
+    if (this.scene.isActive('UIScene')) {
+      this.scene.stop('UIScene');
+    }
+
     this.players = [];
     this.robots = [];
     this.lanterns = [];
