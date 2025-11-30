@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { WeaponType } from '../types';
-import { GOO_GUN_COLOR, EMP_GUN_COLOR, WATER_GUN_COLOR, PLAYER_RADIUS } from '../config/constants';
+import { GOO_GUN_COLOR, EMP_GUN_COLOR, WATER_GUN_COLOR, PLAYER_RADIUS, GOO_GUN_COOLDOWN, EMP_GUN_COOLDOWN, WATER_GUN_COOLDOWN, WEAPON_RANGE } from '../config/constants';
 import { Player } from './Player';
 
 export class Weapon extends Phaser.GameObjects.Graphics {
   public weaponType: WeaponType;
   public holder: Player | null = null;
+  public cooldownTimer: number = 0;
+  public cooldownDuration: number = 0;
+  public range: number = WEAPON_RANGE;
   private triangleShape: Phaser.Geom.Triangle;
   private baseWidth = 20;
   private height = 30;
@@ -14,6 +17,20 @@ export class Weapon extends Phaser.GameObjects.Graphics {
     super(scene);
     this.weaponType = weaponType;
     this.triangleShape = new Phaser.Geom.Triangle();
+    
+    // Set cooldown duration based on weapon type
+    switch (weaponType) {
+      case WeaponType.GOO_GUN:
+        this.cooldownDuration = GOO_GUN_COOLDOWN;
+        break;
+      case WeaponType.EMP_GUN:
+        this.cooldownDuration = EMP_GUN_COOLDOWN;
+        break;
+      case WeaponType.WATER_GUN:
+        this.cooldownDuration = WATER_GUN_COOLDOWN;
+        break;
+    }
+    this.cooldownTimer = 0; // Start ready to fire
     
     scene.add.existing(this);
     this.setPosition(x, y);
@@ -31,7 +48,15 @@ export class Weapon extends Phaser.GameObjects.Graphics {
     this.setVisible(true);
   }
 
-  update() {
+  update(delta?: number) {
+    // Update cooldown timer
+    if (delta && this.cooldownTimer > 0) {
+      this.cooldownTimer -= delta;
+      if (this.cooldownTimer < 0) {
+        this.cooldownTimer = 0;
+      }
+    }
+    
     if (this.holder) {
       // When held: position at holder and point in facing direction
       this.setPosition(this.holder.x, this.holder.y);
@@ -40,6 +65,20 @@ export class Weapon extends Phaser.GameObjects.Graphics {
       // When on ground: point upward and stay at current position
       this.renderTriangle(0, -1);
     }
+  }
+  
+  /**
+   * Checks if weapon is ready to fire (cooldown expired)
+   */
+  isReady(): boolean {
+    return this.cooldownTimer <= 0;
+  }
+  
+  /**
+   * Fires the weapon (resets cooldown)
+   */
+  fire(): void {
+    this.cooldownTimer = this.cooldownDuration;
   }
 
   private renderTriangle(dirX: number, dirY: number) {

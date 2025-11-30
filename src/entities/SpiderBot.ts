@@ -1,7 +1,7 @@
 import { Robot } from './Robot';
 import { Player } from './Player';
 import { RobotType, RobotState, Vector2 } from '../types';
-import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, SPIDER_LEAP_SPEED, SPIDER_LEAP_DISTANCE, SPIDER_RECUPERATION_DURATION, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE } from '../config/constants';
+import { SPIDER_SPEED, SPIDER_SIZE, SPIDER_COLOR, SPIDER_ATTACK_RANGE, SPIDER_ATTACK_COOLDOWN, SPIDER_ATTACK_DAMAGE, SPIDER_LEAP_SPEED, SPIDER_LEAP_DISTANCE, SPIDER_RECUPERATION_DURATION, ALERT_SPEED_MULTIPLIER, BASE_PLAYER_SPEED, ROBOT_CHASE_ABANDON_DISTANCE, DEBUG_MODE, SPIDER_GOO_HITS_TO_KILL, SPIDER_GOO_SPEED_REDUCTION } from '../config/constants';
 import { distance, normalize } from '../utils/geometry';
 import Phaser from 'phaser';
 
@@ -19,6 +19,10 @@ export class SpiderBot extends Robot {
   private leapDirection: Vector2 | null = null; // Direction of the leap
   private leapDistanceTraveled: number = 0; // Distance traveled during leap
   private hasHitPlayer: boolean = false; // Track if we've hit the player during this leap
+  
+  // Goo gun effect tracking (Phase 4.2)
+  private gooHits: number = 0; // Number of goo hits received
+  private baseSpeed: number = SPIDER_SPEED; // Original speed before goo hits
 
   /**
    * Creates a new SpiderBot instance
@@ -58,6 +62,73 @@ export class SpiderBot extends Robot {
     // Initialize attack phase state
     this.attackPhase = 'READY';
     this.recuperationTimer = 0;
+    
+    // Initialize goo hit tracking (Phase 4.2)
+    this.gooHits = 0;
+    this.baseSpeed = SPIDER_SPEED;
+  }
+  
+  /**
+   * Applies a goo gun hit to this spider-bot
+   * Phase 4.2: Goo Gun Effect
+   * - Reduces speed by 33% per hit
+   * - After 3 hits: spider dies and becomes lantern
+   */
+  applyGooHit(): void {
+    this.gooHits++;
+    
+    if (this.gooHits >= SPIDER_GOO_HITS_TO_KILL) {
+      // After 3 hits: spider dies and becomes lantern
+      this.dieAndBecomeLantern();
+    } else {
+      // Reduce speed by 33% per hit
+      const speedMultiplier = 1 - (this.gooHits * SPIDER_GOO_SPEED_REDUCTION);
+      this.speed = this.baseSpeed * speedMultiplier;
+      
+      if (DEBUG_MODE) {
+        console.log(`🕷️ Spider-bot hit by goo (${this.gooHits}/${SPIDER_GOO_HITS_TO_KILL}). Speed reduced to ${this.speed.toFixed(0)} (${(speedMultiplier * 100).toFixed(0)}%)`);
+      }
+    }
+  }
+  
+  /**
+   * Kills the spider-bot and creates a lantern at its position
+   * Phase 4.2: Lantern creation
+   */
+  private dieAndBecomeLantern(): void {
+    if (this.state === RobotState.DEAD) {
+      return; // Already dead
+    }
+    
+    if (DEBUG_MODE) {
+      console.log(`🕷️ Spider-bot killed by goo gun! Creating lantern at (${this.x.toFixed(0)}, ${this.y.toFixed(0)})`);
+    }
+    
+    // Set state to dead
+    this.state = RobotState.DEAD;
+    
+    // Stop movement
+    this.body.setVelocity(0, 0);
+    
+    // Hide the robot
+    this.setVisible(false);
+    
+    // Destroy debug visuals (vision cone, etc.)
+    this.destroyDebugVisuals();
+    
+    // Create lantern at death position
+    // The lantern will be created by GameScene
+    this.scene.events.emit('spider-bot-died', {
+      x: this.x,
+      y: this.y
+    });
+  }
+  
+  /**
+   * Gets the number of goo hits this spider has received
+   */
+  getGooHits(): number {
+    return this.gooHits;
   }
 
   /**

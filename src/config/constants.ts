@@ -94,6 +94,16 @@ export const ROBOT_DECELERATION = 600; // pixels per second squared
 export const ROBOT_CHASE_ABANDON_DISTANCE = 3 * TILE_SIZE; // Distance in pixels (3 tiles) at which robot gives up chasing and returns to patrol
 export const ROBOT_CLOSE_RANGE_DETECTION_RADIUS = 80; // pixels - robots detect players within this radius regardless of facing direction
 
+// Weapons
+export const WEAPON_RANGE = 150; // pixels
+export const WEAPON_AIM_ARC = 90; // degrees (45 degrees each side of facing direction)
+export const GOO_GUN_COOLDOWN = 800; // milliseconds
+export const EMP_GUN_COOLDOWN = 1200; // milliseconds
+export const WATER_GUN_COOLDOWN = 1000; // milliseconds
+export const SPIDER_GOO_HITS_TO_KILL = 3; // Number of goo hits to kill spider
+export const SPIDER_GOO_SPEED_REDUCTION = 0.33; // 33% speed reduction per hit
+export const SPIDER_LANTERN_RADIUS = 100; // pixels - permanent light radius
+
 // Debug
 export const DEBUG_MODE = true; // Enable verbose debug logging
 

@@ -10,6 +10,8 @@ import { ShockBot } from '../entities/ShockBot';
 import { FlameBot } from '../entities/FlameBot';
 import { SwapSystem } from '../systems/SwapSystem';
 import { DetectionSystem } from '../systems/DetectionSystem';
+import { CombatSystem } from '../systems/CombatSystem';
+import { Lantern } from '../entities/Lantern';
 import { RobotSpawn, WeaponType, RobotType } from '../types';
 
 export class GameScene extends Phaser.Scene {
@@ -22,6 +24,8 @@ export class GameScene extends Phaser.Scene {
   private baby!: Baby;
   private swapSystem!: SwapSystem;
   private detectionSystem!: DetectionSystem;
+  private combatSystem!: CombatSystem;
+  private lanterns: Lantern[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -35,8 +39,12 @@ export class GameScene extends Phaser.Scene {
     this.spawnPlayers();
     this.initializeSwapSystem();
     this.initializeDetectionSystem();
+    this.initializeCombatSystem();
     this.setupStartingLoadout(this.players.length);
     this.spawnRobots(); // Phase 3.7: Robust spawning system
+    
+    // Listen for spider-bot death events to create lanterns
+    this.events.on('spider-bot-died', this.handleSpiderBotDeath.bind(this));
     
     // Set up collisions between players and walls
     this.physics.add.collider(this.players, this.walls, this.handlePlayerWallCollision.bind(this));
@@ -72,7 +80,7 @@ export class GameScene extends Phaser.Scene {
     // Update all weapons (both held and on ground)
     this.children.list.forEach(child => {
       if (child instanceof Weapon) {
-        child.update();
+        child.update(delta);
       }
     });
     
@@ -89,6 +97,9 @@ export class GameScene extends Phaser.Scene {
     
     // Update detection system (checks if robots detect players)
     this.detectionSystem.update();
+    
+    // Update combat system (handles auto-shooting)
+    this.combatSystem.update(delta);
   }
 
   private renderLevel() {
@@ -317,6 +328,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Initializes the combat system for auto-shooting
+   * Phase 4.1: Auto-Shooting System
+   */
+  private initializeCombatSystem() {
+    this.combatSystem = new CombatSystem(this);
+    this.combatSystem.setPlayers(this.players);
+    this.combatSystem.setLevelInfo(
+      this.levelData.grid,
+      this.levelData.tileSize,
+      this.levelOffsetX,
+      this.levelOffsetY
+    );
+    // Robots will be set after they're spawned
+  }
+  
+  /**
+   * Handles spider-bot death event - creates a lantern
+   * Phase 4.2: Lantern creation
+   */
+  private handleSpiderBotDeath(data: { x: number; y: number }): void {
+    const lantern = new Lantern(this, data.x, data.y);
+    this.lanterns.push(lantern);
+    console.log(`💡 Lantern created at (${data.x.toFixed(0)}, ${data.y.toFixed(0)})`);
+  }
+
+  /**
    * Spawns all robots from level data based on player count
    * Phase 3.7: Robust spawning system
    * Scales robot count based on number of players
@@ -396,6 +433,11 @@ export class GameScene extends Phaser.Scene {
     // Update detection system with robots after spawning
     if (this.detectionSystem) {
       this.detectionSystem.setRobots(this.robots);
+    }
+    
+    // Update combat system with robots after spawning
+    if (this.combatSystem) {
+      this.combatSystem.setRobots(this.robots);
     }
   }
   

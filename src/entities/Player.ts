@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE } from '../config/constants';
+import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE, WEAPON_RANGE, DEBUG_MODE } from '../config/constants';
 import { PLAYER_CONTROLS } from '../config/controls';
 import { Baby } from './Baby';
 import { Weapon } from './Weapon';
@@ -17,6 +17,9 @@ export class Player extends Phaser.GameObjects.Arc {
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
   };
+  
+  // Debug visual for weapon range (only created if DEBUG_MODE is enabled)
+  private weaponRangeCircle?: Phaser.GameObjects.Graphics;
 
   /**
    * Creates a new Player instance
@@ -70,6 +73,52 @@ export class Player extends Phaser.GameObjects.Arc {
         right: keys[controlConfig.right]
       };
     }
+    
+    // Create debug visual for weapon range if debug mode is enabled
+    if (DEBUG_MODE) {
+      this.createWeaponRangeVisual();
+    }
+  }
+
+  /**
+   * Creates debug visual showing weapon attack range
+   */
+  private createWeaponRangeVisual(): void {
+    this.weaponRangeCircle = this.scene.add.graphics();
+    this.weaponRangeCircle.setDepth(3); // Below player but above floor
+    this.updateWeaponRangeVisual();
+  }
+
+  /**
+   * Updates the weapon range debug visual
+   */
+  private updateWeaponRangeVisual(): void {
+    if (!this.weaponRangeCircle || !DEBUG_MODE) {
+      return;
+    }
+
+    this.weaponRangeCircle.clear();
+
+    // Only show range if player is holding a weapon
+    if (this.heldWeapon) {
+      // Draw weapon range circle
+      this.weaponRangeCircle.lineStyle(2, 0xFFFFFF, 0.4); // White, 40% opacity outline
+      this.weaponRangeCircle.strokeCircle(this.x, this.y, this.heldWeapon.range);
+      
+      // Fill with very low opacity
+      this.weaponRangeCircle.fillStyle(0xFFFFFF, 0.1); // White, 10% opacity fill
+      this.weaponRangeCircle.fillCircle(this.x, this.y, this.heldWeapon.range);
+    }
+  }
+
+  /**
+   * Destroys the weapon range debug visual
+   */
+  private destroyWeaponRangeVisual(): void {
+    if (this.weaponRangeCircle) {
+      this.weaponRangeCircle.destroy();
+      this.weaponRangeCircle = undefined;
+    }
   }
 
   update() {
@@ -105,6 +154,11 @@ export class Player extends Phaser.GameObjects.Arc {
     // Set velocity
     this.body.setVelocity(velocityX, velocityY);
     
+    // Update weapon range debug visual if it exists
+    if (DEBUG_MODE && this.weaponRangeCircle) {
+      this.updateWeaponRangeVisual();
+    }
+    
     // Clear pushing players at end of frame (will be updated by collision callbacks)
     this.pushingPlayers.clear();
   }
@@ -137,6 +191,19 @@ export class Player extends Phaser.GameObjects.Arc {
     if (weapon) {
       weapon.setHolder(this);
     }
+    
+    // Update weapon range visual when weapon changes
+    if (DEBUG_MODE) {
+      this.updateWeaponRangeVisual();
+    }
+  }
+  
+  /**
+   * Cleanup method to destroy debug visuals
+   */
+  destroy() {
+    this.destroyWeaponRangeVisual();
+    super.destroy();
   }
 
   /**

@@ -852,19 +852,29 @@ export class Robot extends Phaser.GameObjects.Rectangle {
   }
 
   /**
+   * Destroys visual debug components (called when robot dies)
+   */
+  destroyDebugVisuals(): void {
+    if (this.detectionRadiusCircle) {
+      this.detectionRadiusCircle.destroy();
+      this.detectionRadiusCircle = undefined;
+    }
+    if (this.detectionCone) {
+      this.detectionCone.destroy();
+      this.detectionCone = undefined;
+    }
+    if (this.closeRangeDetectionCircle) {
+      this.closeRangeDetectionCircle.destroy();
+      this.closeRangeDetectionCircle = undefined;
+    }
+  }
+
+  /**
    * Cleanup method to destroy visual debug components
    */
   destroy() {
     // Clean up detection visuals
-    if (this.detectionRadiusCircle) {
-      this.detectionRadiusCircle.destroy();
-    }
-    if (this.detectionCone) {
-      this.detectionCone.destroy();
-    }
-    if (this.closeRangeDetectionCircle) {
-      this.closeRangeDetectionCircle.destroy();
-    }
+    this.destroyDebugVisuals();
     
     // Call parent destroy
     super.destroy();
