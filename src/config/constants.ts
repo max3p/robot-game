@@ -134,5 +134,8 @@ export const CALM_METER_POST_CRY_RESET = 50; // Calm meter resets to 50 after cr
 export const BABY_CRY_ALERT_DURATION = CRY_ALERT_DURATION;
 
 // Debug
-export const DEBUG_MODE = true; // Enable verbose debug logging
+export const DEBUG_MODE = false; // Enable verbose debug logging
+
+// God Mode
+export const GOD_MODE = true; // If true, players cannot lose hearts when taking damage
 

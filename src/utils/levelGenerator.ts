@@ -1,4 +1,4 @@
-import { LevelData, Vector2 } from '../types';
+import { LevelData, Vector2, RobotType, RobotSpawn } from '../types';
 import { REQUIRED_LEVEL_WIDTH, REQUIRED_LEVEL_HEIGHT, TILE_SIZE } from '../config/constants';
 
 /**
@@ -47,6 +47,9 @@ export function generateRandomLevel(levelNumber: number): LevelData {
   const combinedPath = allPaths.flat();
   addMinimalVariety(grid, combinedPath);
 
+  // Generate robot spawns based on level number
+  const robots = generateRobotSpawns(grid, startPosition, levelNumber);
+
   return {
     id: levelNumber,
     name: `Level ${levelNumber}`,
@@ -54,7 +57,7 @@ export function generateRandomLevel(levelNumber: number): LevelData {
     grid: grid,
     startPosition: startPosition,
     exitPosition: exitPosition,
-    robots: [],
+    robots: robots,
     groundItems: []
   };
 }
@@ -275,5 +278,165 @@ function addMinimalVariety(grid: number[][], path: Vector2[]): void {
       }
     }
   }
+}
+
+/**
+ * Generates robot spawns for the level based on level number
+ * Robots spawn on hallway tiles, never within 3 tiles of start
+ * 
+ * @param grid The level grid (0 = floor, 1 = wall)
+ * @param startPosition The start position
+ * @param levelNumber The level number (1+)
+ * @returns Array of robot spawns
+ */
+function generateRobotSpawns(
+  grid: number[][],
+  startPosition: Vector2,
+  levelNumber: number
+): RobotSpawn[] {
+  const spawns: RobotSpawn[] = [];
+  
+  // Find all valid spawn positions (floor tiles, not within 3 tiles of start)
+  const validSpawnPositions: Vector2[] = [];
+  const minDistanceFromStart = 3;
+  
+  for (let y = 0; y < REQUIRED_LEVEL_HEIGHT; y++) {
+    for (let x = 0; x < REQUIRED_LEVEL_WIDTH; x++) {
+      // Must be a floor tile
+      if (grid[y][x] === 0) {
+        // Calculate Manhattan distance from start
+        const distance = Math.abs(x - startPosition.x) + Math.abs(y - startPosition.y);
+        if (distance >= minDistanceFromStart) {
+          // Special rule for level 1: bots cannot spawn on x < 6 (gives players time to get ready)
+          if (levelNumber === 1 && x < 6) {
+            continue;
+          }
+          validSpawnPositions.push({ x, y });
+        }
+      }
+    }
+  }
+  
+  // If no valid positions, return empty (shouldn't happen with proper path generation)
+  if (validSpawnPositions.length === 0) {
+    return spawns;
+  }
+  
+  // Determine robot types and counts based on level
+  const robotPlans = determineRobotSpawnPlan(levelNumber);
+  
+  // Shuffle valid positions to randomize spawn locations
+  const shuffledPositions = [...validSpawnPositions].sort(() => Math.random() - 0.5);
+  
+  let positionIndex = 0;
+  
+  // Spawn robots according to plan
+  for (const plan of robotPlans) {
+    // Robots can spawn right next to each other - no spacing requirement
+    if (positionIndex < shuffledPositions.length) {
+      const position = shuffledPositions[positionIndex];
+      spawns.push({
+        type: plan.type,
+        position: position
+      });
+      positionIndex++;
+    }
+  }
+  
+  // Ensure at least one robot spawns (guarantee requirement)
+  if (spawns.length === 0 && shuffledPositions.length > 0) {
+    spawns.push({
+      type: RobotType.SPIDER_BOT,
+      position: shuffledPositions[0]
+    });
+  }
+  
+  return spawns;
+}
+
+/**
+ * Determines the robot spawn plan based on level number
+ * Returns an array of robot types to spawn
+ */
+function determineRobotSpawnPlan(levelNumber: number): Array<{ type: RobotType }> {
+  const plan: Array<{ type: RobotType }> = [];
+  
+  // Base scaling: higher levels get more robots
+  // Formula: base count increases with level, with some randomness
+  
+  if (levelNumber === 1) {
+    // Level 1: 1 spider bot guaranteed
+    plan.push({ type: RobotType.SPIDER_BOT });
+  } else if (levelNumber === 2) {
+    // Level 2: 1 spider bot guaranteed, 50% chance shock bot
+    plan.push({ type: RobotType.SPIDER_BOT });
+    if (Math.random() < 0.5) {
+      plan.push({ type: RobotType.SHOCK_BOT });
+    }
+  } else if (levelNumber === 3) {
+    // Level 3: 1 spider, 1 shock, chance of flame bot
+    plan.push({ type: RobotType.SPIDER_BOT });
+    plan.push({ type: RobotType.SHOCK_BOT });
+    
+    // 60% chance for flame bot on level 3
+    if (Math.random() < 0.6) {
+      plan.push({ type: RobotType.FLAME_BOT });
+    }
+  } else {
+    // Level 4+: All three types can spawn
+    // Scaling formula: base robots = 1 + floor(level / 3)
+    // Minimum 2 robots, scales up with level
+    
+    const baseRobotCount = 1 + Math.floor(levelNumber / 3);
+    const minRobots = Math.max(2, baseRobotCount);
+    const maxRobots = Math.min(8, minRobots + 2); // Cap at 8 robots
+    
+    // Random robot count within range
+    const robotCount = minRobots + Math.floor(Math.random() * (maxRobots - minRobots + 1));
+    
+    // Distribution weights based on difficulty:
+    // Spider (easy): 40% of spawns
+    // Shock (medium): 35% of spawns  
+    // Flame (hard): 25% of spawns
+    // Higher levels shift more toward harder enemies
+    
+    const spiderWeight = Math.max(0.25, 0.4 - (levelNumber - 4) * 0.02);
+    const shockWeight = 0.35;
+    const flameWeight = Math.min(0.4, 0.25 + (levelNumber - 4) * 0.02);
+    
+    for (let i = 0; i < robotCount; i++) {
+      const rand = Math.random();
+      if (rand < spiderWeight) {
+        plan.push({ type: RobotType.SPIDER_BOT });
+      } else if (rand < spiderWeight + shockWeight) {
+        plan.push({ type: RobotType.SHOCK_BOT });
+      } else {
+        plan.push({ type: RobotType.FLAME_BOT });
+      }
+    }
+    
+    // Ensure at least one of each type can appear (if level high enough)
+    if (levelNumber >= 5 && plan.length >= 3) {
+      const hasSpider = plan.some(r => r.type === RobotType.SPIDER_BOT);
+      const hasShock = plan.some(r => r.type === RobotType.SHOCK_BOT);
+      const hasFlame = plan.some(r => r.type === RobotType.FLAME_BOT);
+      
+      // If we have room and missing a type, add it
+      if (!hasSpider && plan.length < maxRobots) {
+        plan.push({ type: RobotType.SPIDER_BOT });
+      }
+      if (!hasShock && plan.length < maxRobots) {
+        plan.push({ type: RobotType.SHOCK_BOT });
+      }
+      if (!hasFlame && plan.length < maxRobots) {
+        plan.push({ type: RobotType.FLAME_BOT });
+      }
+    }
+    
+    // Shuffle the plan for variety
+    plan.sort(() => Math.random() - 0.5);
+  }
+  
+  return plan;
 }
 

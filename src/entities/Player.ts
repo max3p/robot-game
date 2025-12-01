@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE, WEAPON_RANGE, DEBUG_MODE, MAX_PLAYER_HEARTS, INVINCIBILITY_DURATION, PLAYER_FLASH_DURATION } from '../config/constants';
+import { BASE_PLAYER_SPEED, BABY_HOLDER_SPEED, PLAYER_RADIUS, PLAYER_COLORS, PLAYER_MASS, PLAYER_BOUNCE, PLAYER_PUSH_SPEED_MULTIPLIER, PLAYER_PUSH_SPEED_MULTIPLIER_MULTIPLE, WEAPON_RANGE, DEBUG_MODE, MAX_PLAYER_HEARTS, INVINCIBILITY_DURATION, PLAYER_FLASH_DURATION, GOD_MODE } from '../config/constants';
 import { PLAYER_CONTROLS } from '../config/controls';
 import { Baby } from './Baby';
 import { Weapon } from './Weapon';
@@ -266,17 +266,23 @@ export class Player extends Phaser.GameObjects.Arc {
       return false;
     }
 
-    // Reduce hearts
-    this.hearts = Math.max(0, this.hearts - damage);
-    
-    if (DEBUG_MODE) {
-      console.log(`💔 Player ${this.playerId} took ${damage} damage. Hearts remaining: ${this.hearts}/${MAX_PLAYER_HEARTS}`);
-    }
+    // Reduce hearts (unless GOD_MODE is enabled)
+    if (!GOD_MODE) {
+      this.hearts = Math.max(0, this.hearts - damage);
+      
+      if (DEBUG_MODE) {
+        console.log(`💔 Player ${this.playerId} took ${damage} damage. Hearts remaining: ${this.hearts}/${MAX_PLAYER_HEARTS}`);
+      }
 
-    // Check if player should enter downed state (Phase 4.8)
-    if (this.hearts <= 0) {
-      this.enterDownedState();
-      return true;
+      // Check if player should enter downed state (Phase 4.8)
+      if (this.hearts <= 0) {
+        this.enterDownedState();
+        return true;
+      }
+    } else {
+      if (DEBUG_MODE) {
+        console.log(`🛡️ Player ${this.playerId} took ${damage} damage but GOD_MODE is enabled - no hearts lost.`);
+      }
     }
 
     // Apply invincibility
