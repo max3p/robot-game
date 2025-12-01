@@ -3,23 +3,16 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
 import { TEXT_STYLE_TITLE, TEXT_STYLE_SUBTITLE, TEXT_STYLE_BUTTON, BUTTON_HOVER_COLOR_DARKEN } from '../config/uiConstants';
 import { createInteractiveButton } from '../utils/uiHelpers';
 import { Level1 } from '../levels/Level1';
-import { Level2 } from '../levels/Level2';
-import { Level3 } from '../levels/Level3';
-import { Level4 } from '../levels/Level4';
-import { LevelData } from '../types';
+import { generateRandomLevel } from '../utils/levelGenerator';
 
 /**
- * Menu Scene - Main menu with player count and level selection
+ * Menu Scene - Main menu with player count and game start options
  */
 export class MenuScene extends Phaser.Scene {
   private selectedPlayerCount: number = 4;
-  private selectedLevel: LevelData = Level1;
   private playerCountButtons: Phaser.GameObjects.Text[] = [];
-  private levelButtons: Phaser.GameObjects.Text[] = [];
   private startButton?: Phaser.GameObjects.Text;
-
-  // Available levels
-  private availableLevels: LevelData[] = [Level1, Level2, Level3, Level4];
+  private playTutorialButton?: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'MenuScene' });
@@ -33,7 +26,6 @@ export class MenuScene extends Phaser.Scene {
 
     // Clear button arrays when scene is recreated
     this.playerCountButtons = [];
-    this.levelButtons = [];
 
     const centerX = GAME_WIDTH / 2;
     const centerY = GAME_HEIGHT / 2;
@@ -79,47 +71,29 @@ export class MenuScene extends Phaser.Scene {
       this.playerCountButtons.push(button);
     }
 
-    // Level selection
-    this.add.text(centerX, 550, 'Level', {
-      ...TEXT_STYLE_SUBTITLE,
-      color: '#FFFFFF',
-      fontSize: '24px'
-    }).setOrigin(0.5, 0.5).setDepth(10);
-
-    // Level buttons
-    const levelY = 600;
-    const levelSpacing = 150;
-    const levelStartX = centerX - ((this.availableLevels.length - 1) * levelSpacing) / 2;
-
-    this.availableLevels.forEach((level, index) => {
-      const buttonX = levelStartX + index * levelSpacing;
-      const isSelected = level.id === this.selectedLevel.id;
-      
-      const button = createInteractiveButton(
-        this,
-        buttonX,
-        levelY,
-        level.name,
-        {
-          ...TEXT_STYLE_BUTTON,
-          color: isSelected ? '#00FF00' : '#FFFFFF',
-          fontSize: '20px'
-        },
-        '#00CC00',
-        () => {
-          this.selectLevel(level);
-        }
-      );
-      button.setDepth(10); // Above background image
-
-      this.levelButtons.push(button);
-    });
+    // TUTORIAL button
+    this.playTutorialButton = createInteractiveButton(
+      this,
+      centerX,
+      centerY + 200,
+      'TUTORIAL',
+      {
+        ...TEXT_STYLE_BUTTON,
+        color: '#00FF00',
+        fontSize: '36px'
+      },
+      '#00CC00',
+      () => {
+        this.startTutorial();
+      }
+    );
+    this.playTutorialButton.setDepth(10); // Above background image
 
     // Start button
     this.startButton = createInteractiveButton(
       this,
       centerX,
-      centerY + 260,
+      centerY + 280,
       'START',
       {
         ...TEXT_STYLE_BUTTON,
@@ -128,7 +102,7 @@ export class MenuScene extends Phaser.Scene {
       },
       '#00CC00',
       () => {
-        this.startGame();
+        this.startRoguelike();
       }
     );
     this.startButton.setDepth(10); // Above background image
@@ -173,51 +147,34 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * Selects level and updates button appearance
+   * Starts the tutorial (Level 1) with selected player count
    */
-  private selectLevel(level: LevelData): void {
-    this.selectedLevel = level;
+  private startTutorial(): void {
+    console.log(`🚀 Starting tutorial: ${this.selectedPlayerCount} players, Level 1`);
     
-    // Update button colors and hover handlers
-    this.levelButtons.forEach((button, index) => {
-      const levelData = this.availableLevels[index];
-      const isSelected = levelData.id === this.selectedLevel.id;
-      const newColor = isSelected ? '#00FF00' : '#FFFFFF';
-      
-      // Update button style
-      button.setStyle({
-        ...TEXT_STYLE_BUTTON,
-        color: newColor,
-        fontSize: '20px'
-      });
-      
-      // Update hover handlers to use current color
-      button.removeAllListeners('pointerover');
-      button.removeAllListeners('pointerout');
-      button.on('pointerover', () => {
-        button.setStyle({ color: '#00CC00' });
-      });
-      button.on('pointerout', () => {
-        button.setStyle({ color: newColor });
-      });
-      button.on('pointerdown', () => {
-        this.selectLevel(levelData);
-      });
+    // Start GameScene with Level1 and selected player count
+    this.scene.start('GameScene', {
+      levelData: Level1,
+      playerCount: this.selectedPlayerCount,
+      isRoguelike: false
     });
-
-    console.log(`🎮 Selected level: ${level.name}`);
   }
 
   /**
-   * Starts the game with selected player count and level
+   * Starts roguelike mode with a randomly generated level 1
    */
-  private startGame(): void {
-    console.log(`🚀 Starting game: ${this.selectedPlayerCount} players, Level ${this.selectedLevel.id} (${this.selectedLevel.name})`);
+  private startRoguelike(): void {
+    console.log(`🎲 Starting roguelike mode: ${this.selectedPlayerCount} players, Level 1`);
     
-    // Start GameScene with selected level and player count
+    // Generate first random level
+    const level1 = generateRandomLevel(1);
+    
+    // Start GameScene with generated level, player count, and roguelike flag
     this.scene.start('GameScene', {
-      levelData: this.selectedLevel,
-      playerCount: this.selectedPlayerCount
+      levelData: level1,
+      playerCount: this.selectedPlayerCount,
+      isRoguelike: true,
+      levelNumber: 1
     });
   }
 }

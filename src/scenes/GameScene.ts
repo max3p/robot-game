@@ -19,6 +19,7 @@ import { RobotSpawn, WeaponType, RobotType, RobotState, LevelData } from '../typ
 import { GameOverData } from './GameOverScene';
 import { LevelCompleteData } from './LevelCompleteScene';
 import { validateLevelDimensions } from '../utils/levelValidation';
+import { generateRandomLevel } from '../utils/levelGenerator';
 
 /**
  * Main gameplay scene
@@ -27,6 +28,8 @@ import { validateLevelDimensions } from '../utils/levelValidation';
 export class GameScene extends Phaser.Scene {
   private levelData!: LevelData;
   private playerCount: number = 4;
+  private isRoguelike: boolean = false;
+  private levelNumber: number = 1; // For roguelike mode level tracking
   private levelOffsetX = 0;
   private levelOffsetY = 0;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -49,10 +52,13 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
-  init(data?: { levelData?: LevelData; playerCount?: number }) {
+  init(data?: { levelData?: LevelData; playerCount?: number; isRoguelike?: boolean; levelNumber?: number }) {
     // Accept level data and player count from scene transition, or default to Level1 and 4 players
     this.levelData = data?.levelData || Level1;
     this.playerCount = data?.playerCount || 4;
+    this.isRoguelike = data?.isRoguelike || false;
+    // For roguelike mode, use levelData.id as levelNumber if not provided (for continuation from LevelCompleteScene)
+    this.levelNumber = data?.levelNumber ?? (this.isRoguelike ? this.levelData.id : 1);
     this.isGameOver = false; // Reset game over flag
     this.isLevelComplete = false; // Reset level complete flag (Phase 5.4)
     
@@ -940,6 +946,30 @@ export class GameScene extends Phaser.Scene {
 
     this.isLevelComplete = true;
 
+    // Handle roguelike mode - generate next level
+    if (this.isRoguelike) {
+      const nextLevelNumber = this.levelNumber + 1;
+      const nextLevel = generateRandomLevel(nextLevelNumber);
+
+      // Prepare level complete data for roguelike mode
+      const levelCompleteData: LevelCompleteData = {
+        levelData: this.levelData,
+        nextLevelData: nextLevel,
+        playerCount: this.playerCount,
+        isRoguelike: true,
+        levelNumber: nextLevelNumber
+      };
+
+      // Transition to LevelCompleteScene
+      this.scene.start('LevelCompleteScene', levelCompleteData);
+
+      if (DEBUG_MODE) {
+        console.log(`🎉 Roguelike Level Complete: ${this.levelData.name} -> Level ${nextLevelNumber}`);
+      }
+      return;
+    }
+
+    // Tutorial mode - handle hardcoded levels
     // Determine next level based on current level ID
     const allLevels = [Level1, Level2, Level3, Level4];
     const currentLevelIndex = allLevels.findIndex(level => level.id === this.levelData.id);
@@ -957,7 +987,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Prepare level complete data for other levels
+    // Prepare level complete data for tutorial levels
     const levelCompleteData: LevelCompleteData = {
       levelData: this.levelData,
       nextLevelData: nextLevel,

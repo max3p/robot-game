@@ -9,6 +9,8 @@ export interface LevelCompleteData {
   levelData: LevelData;
   nextLevelData?: LevelData; // Optional next level (undefined if all levels complete)
   playerCount?: number; // Player count to pass to next level
+  isRoguelike?: boolean; // Whether this is roguelike mode
+  levelNumber?: number; // Current level number in roguelike mode
 }
 
 export class LevelCompleteScene extends Phaser.Scene {
@@ -70,10 +72,18 @@ export class LevelCompleteScene extends Phaser.Scene {
         '#00CC00',
         () => {
           // Load next level with same player count
-          this.scene.start('GameScene', { 
+          // Pass roguelike mode info if present
+          const sceneData: any = { 
             levelData: nextLevelData,
             playerCount: playerCount
-          });
+          };
+          
+          if (this.levelCompleteData.isRoguelike) {
+            sceneData.isRoguelike = true;
+            sceneData.levelNumber = this.levelCompleteData.levelNumber;
+          }
+          
+          this.scene.start('GameScene', sceneData);
         }
       );
     } else {
