@@ -61,12 +61,58 @@ export class BootScene extends Phaser.Scene {
     // Load menu cover image
     this.load.image('tabula-cover', '/tabula-cover.png');
 
-    // Placeholder for future sprites/assets
-    // Add more assets here as they are created
-    // Example:
-    // this.load.image('player-sprite', 'assets/player.png');
-    // this.load.image('robot-sprite', 'assets/robot.png');
-    // etc.
+    // Load player run spritesheets (20x120px, 6 frames of 20x20px each)
+    this.load.spritesheet('player-run-up', '/sprites/player-run-up.png', {
+      frameWidth: 20,
+      frameHeight: 20
+    });
+    this.load.spritesheet('player-run-down', '/sprites/player-run-down.png', {
+      frameWidth: 20,
+      frameHeight: 20
+    });
+    this.load.spritesheet('player-run-left', '/sprites/player-run-left.png', {
+      frameWidth: 20,
+      frameHeight: 20
+    });
+    this.load.spritesheet('player-run-right', '/sprites/player-run-right.png', {
+      frameWidth: 20,
+      frameHeight: 20
+    });
+  }
+
+  /**
+   * Creates animations from loaded spritesheets
+   * Called after assets are loaded
+   */
+  createAnimations(): void {
+    // Create animations for each direction (6 frames, 10fps)
+    this.anims.create({
+      key: 'player-run-up',
+      frames: this.anims.generateFrameNumbers('player-run-up', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player-run-down',
+      frames: this.anims.generateFrameNumbers('player-run-down', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player-run-left',
+      frames: this.anims.generateFrameNumbers('player-run-left', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player-run-right',
+      frames: this.anims.generateFrameNumbers('player-run-right', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1
+    });
   }
 
   /**
@@ -103,6 +149,9 @@ export class BootScene extends Phaser.Scene {
     if (this.progressText) {
       this.progressText.setText('100%');
     }
+
+    // Create animations from loaded spritesheets
+    this.createAnimations();
 
     // Small delay to show 100% before transitioning
     this.time.delayedCall(300, () => {

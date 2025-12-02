@@ -4,7 +4,7 @@ import { PLAYER_CONTROLS } from '../config/controls';
 import { Baby } from './Baby';
 import { Weapon } from './Weapon';
 
-export class Player extends Phaser.GameObjects.Arc {
+export class Player extends Phaser.GameObjects.Rectangle {
   declare public body: Phaser.Physics.Arcade.Body;
   public playerId: number;
   public heldBaby: Baby | null = null;
@@ -31,6 +31,11 @@ export class Player extends Phaser.GameObjects.Arc {
   // Debug visual for weapon range (only created if DEBUG_MODE is enabled)
   private weaponRangeCircle?: Phaser.GameObjects.Graphics;
 
+  // Animated sprite displayed on top of the square
+  private sprite?: Phaser.GameObjects.Sprite;
+  private currentAnimation: string = 'player-run-down';
+  private isMoving: boolean = false;
+
   /**
    * Creates a new Player instance
    * @param scene The Phaser scene this player belongs to
@@ -46,19 +51,24 @@ export class Player extends Phaser.GameObjects.Arc {
     }
     
     const playerColor = PLAYER_COLORS[playerId - 1];
-    super(scene, x, y, PLAYER_RADIUS, 0, 360, false, playerColor);
+    // Create square: PLAYER_RADIUS * 2 = 32 pixels (diameter of original circle)
+    const squareSize = PLAYER_RADIUS * 2;
+    super(scene, x, y, squareSize, squareSize, playerColor);
     
     this.playerId = playerId;
     
     scene.add.existing(this);
     scene.physics.add.existing(this);
     
-    // Set up physics body
-    this.body.setCircle(PLAYER_RADIUS);
+    // Set up physics body as square
+    this.body.setSize(squareSize, squareSize);
     this.body.setCollideWorldBounds(false); // We'll handle bounds manually with custom bounds
     this.body.setMass(PLAYER_MASS);
     this.body.setBounce(PLAYER_BOUNCE, PLAYER_BOUNCE);
     this.body.setImmovable(false); // Players can be pushed
+    
+    // Hide the square (sprite is visible instead)
+    this.setAlpha(0);
     
     // Set up input based on player controls
     const controlConfig = PLAYER_CONTROLS[playerId as keyof typeof PLAYER_CONTROLS];
@@ -88,6 +98,14 @@ export class Player extends Phaser.GameObjects.Arc {
     if (DEBUG_MODE) {
       this.createWeaponRangeVisual();
     }
+
+    // Create animated sprite on top of the square
+    this.sprite = scene.add.sprite(x, y - 10, 'player-run-down', 0); // -10px Y offset
+    this.sprite.setScale(2.6); // Scale over 32x32 to accomodate whitespace
+    this.sprite.setDepth(this.depth + 1); // Render above the square
+    this.sprite.setOrigin(0.5, 0.5); // Center the sprite
+    // Apply color tint to match player's square color
+    this.sprite.setTint(playerColor);
   }
 
   /**
@@ -144,9 +162,13 @@ export class Player extends Phaser.GameObjects.Arc {
       if (this.invincibilityTimer <= 0) {
         this.isInvincible = false;
         this.invincibilityTimer = 0;
-        // Only restore full opacity if not downed
+        // Only restore full opacity if not downed (square stays invisible, only sprite changes)
         if (!this.isDowned) {
-          this.setAlpha(1);
+          // Keep square invisible
+          this.setAlpha(0);
+          if (this.sprite) {
+            this.sprite.setAlpha(1);
+          }
         }
         this.isFlashing = false;
       } else {
@@ -156,8 +178,13 @@ export class Player extends Phaser.GameObjects.Arc {
           this.isFlashing = !this.isFlashing;
           this.flashTimer = PLAYER_FLASH_DURATION;
           // Toggle visibility during flash (but respect downed state opacity)
+          // Square stays invisible, only sprite flashes
           if (!this.isDowned) {
-            this.setAlpha(this.isFlashing ? 0.3 : 1);
+            const alpha = this.isFlashing ? 0.3 : 1;
+            this.setAlpha(0); // Keep square invisible
+            if (this.sprite) {
+              this.sprite.setAlpha(alpha);
+            }
           }
         }
       }
@@ -190,10 +217,28 @@ export class Player extends Phaser.GameObjects.Arc {
       
       // Update facing direction based on movement
       this.facingDirection = { x: moveX / length, y: moveY / length };
+      
+      // Update animation based on movement direction
+      this.isMoving = true;
+      this.updateAnimation();
+    } else {
+      // Not moving - stop animation and show first frame
+      this.isMoving = false;
+      if (this.sprite && this.sprite.anims.isPlaying) {
+        this.sprite.anims.stop();
+        // Show first frame (frame 0) of current direction
+        const animKey = this.getAnimationKey();
+        this.sprite.setTexture(animKey, 0);
+      }
     }
     
     // Set velocity
     this.body.setVelocity(velocityX, velocityY);
+    
+    // Update sprite position to match player position with -10px Y offset
+    if (this.sprite) {
+      this.sprite.setPosition(this.x, this.y - 10);
+    }
     
     // Update weapon range debug visual if it exists
     if (DEBUG_MODE && this.weaponRangeCircle) {
@@ -244,6 +289,10 @@ export class Player extends Phaser.GameObjects.Arc {
    */
   destroy() {
     this.destroyWeaponRangeVisual();
+    if (this.sprite) {
+      this.sprite.destroy();
+      this.sprite = undefined;
+    }
     super.destroy();
   }
 
@@ -290,7 +339,10 @@ export class Player extends Phaser.GameObjects.Arc {
     this.invincibilityTimer = INVINCIBILITY_DURATION;
     this.flashTimer = PLAYER_FLASH_DURATION;
     this.isFlashing = true;
-    this.setAlpha(0.3); // Start with reduced opacity
+    this.setAlpha(0); // Keep square invisible
+    if (this.sprite) {
+      this.sprite.setAlpha(0.3); // Start sprite with reduced opacity
+    }
 
     // Trigger baby cry if player is baby holder (Phase 4.7 / Phase 5.1)
     if (this.heldBaby) {
@@ -320,8 +372,11 @@ export class Player extends Phaser.GameObjects.Arc {
     this.invincibilityTimer = 0;
     this.isFlashing = false;
     
-    // Set opacity to 50%
-    this.setAlpha(0.5);
+    // Set opacity to 50% (square stays invisible, only sprite changes)
+    this.setAlpha(0); // Keep square invisible
+    if (this.sprite) {
+      this.sprite.setAlpha(0.5);
+    }
     
     // Stop movement
     this.body.setVelocity(0, 0);
@@ -339,6 +394,44 @@ export class Player extends Phaser.GameObjects.Arc {
    */
   isDead(): boolean {
     return this.hearts <= 0;
+  }
+
+  /**
+   * Gets the animation key based on facing direction
+   * @returns Animation key string
+   */
+  private getAnimationKey(): string {
+    // Determine primary direction (prioritize vertical over horizontal for diagonal movement)
+    const absX = Math.abs(this.facingDirection.x);
+    const absY = Math.abs(this.facingDirection.y);
+    
+    if (absY > absX) {
+      // Vertical movement takes priority
+      return this.facingDirection.y < 0 ? 'player-run-up' : 'player-run-down';
+    } else {
+      // Horizontal movement
+      return this.facingDirection.x < 0 ? 'player-run-left' : 'player-run-right';
+    }
+  }
+
+  /**
+   * Updates the animation based on current facing direction
+   */
+  private updateAnimation(): void {
+    if (!this.sprite || !this.isMoving) {
+      return;
+    }
+
+    const newAnimation = this.getAnimationKey();
+    
+    // Only switch animation if it's different from current
+    if (newAnimation !== this.currentAnimation) {
+      this.currentAnimation = newAnimation;
+      this.sprite.anims.play(newAnimation, true);
+    } else if (!this.sprite.anims.isPlaying) {
+      // If animation stopped but we're still moving, restart it
+      this.sprite.anims.play(newAnimation, true);
+    }
   }
 }
 
